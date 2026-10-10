@@ -1,0 +1,88 @@
+CHANGES FROM v2.1
+
+This version adds three research diagnostics and a second performance clock, as decided by the user. It does not change the strategy, the eligibility rules, the discovery hierarchy or the data-status rules, and it adds no master score, no machine-learning score and no automated trading.
+Added 6.3d Valuation & Opportunity Check, a diagnostic in the research layer (not a Core Track 1 eligibility rule). It asks whether the pullback made the company cheaper because the market repriced the shares or because expected earnings deteriorated, and distinguishes favorable valuation compression from potential value-trap compression.
+Added 6.1c Macro Drawdown / Crash-Risk Early-Warning Layer, separate from the acute tripwires in 6.1a. It qualitatively classifies drawdown-risk deterioration (breadth, credit, volatility structure, rates and liquidity, with valuation and sentiment as amplifiers only) as Normal, Caution, Elevated, Severe, Crisis or Unavailable. It never predicts a crash date and never invalidates a candidate by itself.
+Added 6.3e Opportunity Type: Company-specific opportunity, Sector/theme opportunity, Macro opportunity or Systemic-risk setup, connecting the early-warning level to the good apple versus damaged apple logic.
+Added the section PORTFOLIO PERFORMANCE VS. INDIVIDUAL STOCK EVALUATION. The portfolio's annual clock is now explicitly separate from each candidate's or position's own 52-week evaluation window (Week 0, 52-week endpoint, 52-week mark). The 365-day wording is replaced throughout the live requirements. 52 weeks is 364 days, so an endpoint falls one day earlier than the former 365-day window. The retained change logs below keep their historical 365-day wording.
+Terminology unified: estimate revisions are Improving, Stable or Falling everywhere. The early-warning level "Elevated" is always named as such and is distinct from the crash-alert flag value "elevated".
+Regime guidance (6.1, 6.5) now also treats an early-warning level of Elevated or Severe like a macro-stressed regime (highest-conviction setups only, no more than 50% of normal size when sizing is requested).
+Correction to v2.2: the early-warning level Crisis now means the acute crash-alert state has actually reached crash, not merely elevated. An elevated crash-alert flag remains a serious warning state but is not labeled Crisis. The regime guidance in 6.1 is made consistent: trend unfavorable, crash-alert crash or early-warning Crisis means skip new entries and review open positions; trend neutral, macro stressed, crash-alert elevated or early-warning Elevated or Severe means highest-conviction setups only, at no more than 50% of normal size when sizing is requested; favorable trend with normal macro stress, normal crash-alert and early-warning Normal or Caution means normal regime guidance. This replaces the earlier proposal that Crisis equals an elevated or crash flag.
+6.1c is renamed the Macro Drawdown / Crash-Risk Early-Warning Layer, because it assesses conditions under which the probability and potential severity of a broad equity drawdown are increasing, not whether a crash is coming. The 52-week evaluation window is described as this PRD's own methodology, separate from the standard market terms 52-week high, low and range.
+Added early-warning and valuation-source entries to the Source Register, an early-warning paste item to 6.1b, glossary entries, and open questions for the thresholds and rules the user has not yet set.
+
+CHANGES FROM v2.0 (retained)
+
+This version is a tightening pass. It adds no strategy features, no new tracks and no scoring model, and the 20%-below-high rule is unchanged.
+The discovery hierarchy is now stated: the Core Track 1 universe scan is the primary systematic screen, the Top-50 Daily Losers lane is secondary, and the Theme and News lane is supplementary. The Macro Dashboard is explicitly not a discovery lane. Taiwan, Korea, Singapore, India, Japan, Hong Kong and other non-US benchmarks are contextual inputs only and do not expand the US-only universe. All lanes converge on the same eligibility, research, thesis, invalidation and waiting framework, and discovery method never waives a rule.
+Added 6.3c Candidate Data Status: Verified, Mixed-source, Provisional or Data incomplete. A Provisional candidate cannot be marked entry-ready. A Data incomplete candidate cannot be graded. The status is a category, not a numeric score.
+Manual market-data definitions: BTCUSD needs a dedicated 24-hour change value; the RTY/NQ "ratio" is renamed the RTY-NQ relative-performance spread (RTY1! day % minus NQ1! day %); K2I1! and TXF1! remain separate confirmations, with a note that correlated signals may represent one underlying stress dimension.
+Snapshot boundaries: every manually supplied Top-50 list records its timestamp and whether it is intraday or end-of-day, and a general snapshot principle applies wherever manual market data is used.
+Invalidation and stops are separated. A technical invalidation level (a structural level such as the recent swing low) is a research reference. Entry-dependent stops are calculated only from an actual purchase, or on request. Screening-date, area-of-interest and actual purchase prices are kept separate.
+Added a 365-day day-count convention: day 0 is the purchase date; the window ends 365 calendar days later; the day-365 observation is the last US trading close on or before that date; the mark is reached when a closing price on a trading date after the purchase date and on or before the window end is at or above it.
+Terminology: Non-Goals are now "Current Strategy Scope" and the build order is labeled by document version. "Current v1 operation" becomes "the current manual implementation", and strategy-scope uses of "v1" and "v2" become "current strategy scope" and "later strategy expansion", so they no longer collide with the document version.
+The non-purchased candidate-path question stays open, reworded to separate research quality from trade quality. The architecture section now states that there is no master numeric score, no machine-learning scoring model and no multi-agent design.
+The companion Macro Benchmark Reading Guide is updated to v2.1 to match.
+
+CHANGES FROM v1.9 (retained)
+
+This version rethinks the data layer around what the user can actually access, rebuilds the Macro Dashboard to match the user's real TradingView watchlist, and adds Singapore and Taiwan. The strategy, the eligibility rules, the lanes and the outcome tracking are unchanged.
+IBKR is no longer assumed to be the sole source of truth. The user reports that some IBKR data is gated behind paid market-data subscriptions or account requirements (exact conditions unconfirmed). Each data field now has a designated source in a Source Register (6.3b), with a status of observed working, not observed, untested or user-supplied. Observed availability of the Claude IBKR connector in October 2026 is recorded there.
+Added 6.1b Manual TradingView Input Protocol. The user copies data from TradingView into the prompt (text, CSV or screenshot). It defines what to paste for each mode, how the agent validates a paste, what happens to missing instruments (never filled from memory), and the snapshot rule for tripwires.
+TradingView has no public API for market data (checked October 2026); the only officially supported outbound path is webhook alerts on a paid plan, and scrapers are unofficial. Automation through TradingView is therefore not a v2 requirement. A TradingView Premium plan does not change this.
+6.1a rebuilt: every instrument is mapped to a TradingView symbol, a watchlist reconciliation lists what matches, what to fix, what to add and what to drop, and Singapore (SGX:SGP1!, record only for now) and Taiwan (TAIFEX:TXF1!, fires at -3%) are added. KOSPI 200 night futures resolves to K2I1! (KRX KOSPI 200 futures; night-session coverage unconfirmed). GIFT Nifty must be NSEIX:NIFTY1!. TVC:US10Y, oil, SPY and QQQ must be on the watchlist because the regime flags need them. The VX1! tripwire now states that the level test of 25 applies to VIX spot.
+Tripwires are now evaluated on a snapshot at paste time, not on a trailing 24 hours (that specification returns if collection is automated). Contract-roll handling is adapted to pasted data.
+Rewrote the IBKR-dependent text in Users, R2, R4, 6.2, 6.2c, 6.3, 6.3a, 6.7, 6.8, Architecture, Non-Functional Requirements, Open Questions and Build Order so that none of it claims IBKR is the only source. Build Step 0 now builds the Source Register.
+Added 6.11 Label Glossary, collecting every label used in the PRD in one place.
+A companion document, the Macro Benchmark Reading Guide v2.0, explains how to read each instrument. The PRD governs where the two differ.
+
+CHANGES FROM v1.8 (retained)
+
+This version is a consistency pass. It does not add tracks, lanes or features, and it does not change the underlying strategy. It removes ambiguities and contradictions and changes four behaviors, as decided by the user (the 15% price-only mark, the beta rule, sizing on request, and the outcome labels).
+The portfolio objective and the stock research hurdle are now explicitly separate. The portfolio objective is a minimum 15% net annual portfolio return, evaluated separately from the user's actual trades, position sizes and realized returns. The 15% mark is a per-stock research hurdle, not a claim that the strategy will produce a 15% portfolio return.
+The 15% mark is now a price-only hurdle: a closing price at or above 1.15 times the start-date or actual purchase price. Dividends are logged separately and are not counted toward the mark. This replaces the total-return basis introduced in v1.6.
+6.10 now tracks two separate outcomes: the trade outcome (what the user's actual position did) and the price-path outcome (what the stock did). The labels "Success after drawdown", "Stopped out first", "Not reached" and "Not purchased" are removed, and a flag records whether the advisory stop or trailing exit was breached. Outcome records exist only for purchases.
+Beta: the primary beta alone decides eligibility and lane. The 1-year daily cross-check produces a "Beta sensitivity" label for manual scrutiny and does not change lane or size. "Beta discrepancy" is reserved for two sources disagreeing on the same metric and window. This replaces the v1.8 "Beta disputed" rule.
+"Near-miss" now means exclusively a candidate that fails only the drawdown rule. A beta-only failure is Track 1X. A failure of any other rule is Excluded.
+Position sizing is now provided on request only, and is no longer part of the default screening output. Stop, invalidation, trailing-exit, event blackout and regime context remain in the default output.
+The practical liquidity floor is now average daily dollar volume (proposed starting value $10M, tunable) plus the $5 price floor, instead of share volume.
+Added a point-in-time (no look-ahead) rule for historical evaluation (Non-Functional Requirements and Build Order).
+Wording cleanup: the Overview and Goals now state that v1 is a manual research pipeline designed to support later scheduled and event-triggered execution. The three discovery lanes are described as different discovery methods that converge on the same eligibility rules.
+
+CHANGES FROM v1.7 (retained)
+
+Added 6.2c Theme and News-Driven Discovery Lane. This is the approach that surfaced NOW, ADBE and AVGO in the v1.0 scan, now written down as a defined lane. Claude builds a watchlist of large, liquid names from current themes and news, then grades every name against the Track 1 rules. The core numeric rules still decide each label; theme relevance, popularity or analyst attention never waive a rule.
+Added a Universe and Scan Definition to 6.2 for the core Track 1 screen: what the universe is, how the scan runs, what happens when the IBKR scanner cannot supply the fields, and a lane coverage rule so a partial scan is never presented as the complete screen.
+Added a Beta Definition to 6.2: which beta is used, from which source and window, a cross-check computed from IBKR price history, and "Beta disputed" handling when two measures fall on different sides of a threshold (for example NOW, where a 5-year monthly beta of 0.97 and a 1-year beta near 1.5 land on opposite sides of 1.3).
+Proposed: the existing re-entry alert list is extended to near-miss names that fail only the drawdown rule (for example a stock 18% below its high), alerting when they reach 20% below. Not a new track.
+6.0 (Mode C), 6.3a (field source map), 6.6, 6.8, 6.10, R7, Goals, Overview, Open Questions and Build Order updated to match. Candidates now carry a "found via" lane tag, and outcome records keep the lane so results can be compared by lane.
+No new tracks. The Track 1A/1B/1C idea (separate quality-rerating and deep-value tracks) stays out of v1 scope and remains a v2 candidate after the Track 1 backtest.
+
+CHANGES FROM v1.6 (retained)
+
+The same-calendar-year close-out rule is replaced by a 365-day close-out review from the actual purchase date, with a review starting 30 days before day 365. A year-end checkpoint remains for information only and does not force a close. The "crosses year-end" flag is removed because it is no longer needed.
+Added 6.10 Outcome Tracking and Success Definition. Success means the stock reaches the 15% mark at any point within 365 days of the actual purchase date (closing-price basis, total return), and whether it is still above the mark at day 365 is also recorded.
+R9 expanded: when the user reports a buy, the agent also refreshes the path assessment for the new window, and keeps the screening-date price and the area-of-interest price next to the outcome.
+6.4 and 6.5 updated to match; build order and open questions updated.
+
+CHANGES FROM v1.5 (retained)
+
+The profitability horizon is 365 days from the start date (the date of the request, or the actual purchase date once the user buys), measured against a 15% mark.
+The agent never guarantees a return; it assesses whether a credible, evidence-backed path exists.
+R9 covers trade records: the user's reported buys and sells become the start point for the 365-day window, stops, trailing exits and reviews.
+
+CHANGES FROM v1.4 (retained)
+
+Added a Precedence Rule: the manual, minimum-necessary behavior governs execution and output; original requirements stay in the PRD as the specification for when a component is run, requested or automated later.
+Added a Research Principles section (delegation, raw data first, discernment, diligence, purpose, evidence before narrative, research integrity, human decision boundary, governing principle).
+Added 6.0 Execution Modes (Modes A-F).
+Added the Top-50 Daily Losers discovery lane, the practical penny-stock floor, and the Claude triage step (6.2a, 6.2b).
+Expanded 6.3 with drawdown-cause investigation and the good apple versus damaged apple test.
+Added 6.3a Source Hierarchy, Source Conflicts and Connector Trust Model.
+Expanded 6.4 with falsifiability requirements.
+Added 6.9 Entry-Wait Analysis and Event-Aware Waiting.
+6.5 sizing is advisory and shown by default, with the final call left to the user.
+6.7 Scheduling and Triggers is retained but marked OPTIONAL, not required (manual operation).
+6.8 Output defaults to concise plain text, with templates for each request type.
+Added an Architecture and Development Approach section.
+Build order restructured (Step 0 for IBKR verification; scheduling moved to an optional last step).

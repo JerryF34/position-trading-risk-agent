@@ -1,0 +1,736 @@
+PRODUCT REQUIREMENTS DOCUMENT - POSITION TRADING SCREENING & RISK AGENT (v2.2)
+
+PRECEDENCE RULE
+
+Where an earlier requirement conflicts with the manual-operation, execution-mode or default-output requirements (6.0, 6.7, 6.8 and the Research Principles), the manual, minimum-necessary behavior governs execution and output. The original requirement is not deleted. It remains in this PRD as the specification for when that component is run, is requested, or is automated in the future.
+
+
+OVERVIEW
+
+A manual research pipeline, designed so that scheduled and event-triggered execution can be added later, that identifies quality US equities trading well below their highs (Track 1: quality pullback), filtered by a market-regime check, with stops and exits set by explicit risk rules (and position sizing on request). Candidates come from three discovery lanes in a stated hierarchy: the core universe scan of the Track 1 rules (6.2) is the primary systematic screen, the Top-50 Daily Losers lane (6.2a) is secondary, and the theme and news-driven lane (6.2c) is supplementary. The Macro Dashboard (6.1a) is not a discovery lane; it is a reference, regime and market-context layer. It supports a position-trading approach (holding weeks to months, with each position reviewed for close-out at its 52-week endpoint, measured from the actual purchase date) that targets a minimum 15% net portfolio gain annually. Beyond generating a candidate list, the pipeline must produce a written thesis and a written invalidation condition for every candidate and every open position, so that exits are decided in advance rather than in the moment.
+
+Two performance clocks and two different 15% figures are used in this PRD, and they must never be mixed: the portfolio's annual +15% objective, and each individual stock's +15% price mark within its own 52-week evaluation window. See PORTFOLIO PERFORMANCE VS. INDIVIDUAL STOCK EVALUATION below. The mark is a screening and research hurdle, not a claim that the strategy will produce a 15% portfolio return; a stock reaching its mark contributes to the portfolio only in proportion to the position size actually held.
+
+The system is a research and decision-support tool, not an autonomous trader. It is run manually by the user (scheduling and event triggers remain specified but optional, see 6.7). Candidates are evaluated over a 52-week evaluation window: whether the stock has a credible, evidence-backed path to the user's mark (a 15% price gain, measured on closing prices) within 52 weeks of its Week 0. Week 0 is the screening date (the date of the request), or, once the user buys, the date of the actual purchase. The six-month thesis window remains and means the period in which the thesis, catalyst or re-rating should begin to materialize. The system never guarantees a return; it assesses whether a path exists and what would confirm or break it. The same-calendar-year close-out requirement is replaced by the 52-week close-out review in 6.5. A year-end checkpoint remains a portfolio-level, informational measurement and does not force a close.
+
+
+PORTFOLIO PERFORMANCE VS. INDIVIDUAL STOCK EVALUATION (new in v2.2)
+
+The PRD uses two separate performance clocks. They are never mixed.
+
+Portfolio performance clock. Portfolio performance is evaluated on an annual basis (the calendar-year portfolio performance period) and answers one question: did the overall portfolio achieve the minimum +15% net annual return objective? It depends on the actual portfolio: position sizes, entry and exit timing, realized and unrealized gains and losses, dividends, cash and other portfolio-level effects. The +15% annual portfolio objective is NOT a requirement that every stock individually produce +15% in the same calendar year. The year-end checkpoint (6.5) remains a portfolio-level measurement and an informational review of open positions. It does not force a position to close because the calendar year ended.
+
+Individual stock and position clock. Each candidate or purchased position has its own independent 52-week evaluation window.
+Unpurchased candidate: Week 0 is the screening date, the reference price is the screening-date price, and the agent evaluates the candidate's potential path over the following 52 weeks.
+Purchased position: Week 0 is the actual purchase date, the reference price is the actual purchase price, and the position is evaluated over the following 52 weeks.
+The 52-week window is independent of the calendar-year portfolio period and may cross calendar years.
+
+52-week mark: 1.15 times the relevant reference price. It is price-only and before fees and taxes. Dividends are recorded separately and are not counted toward the mark.
+52-week endpoint: the last available US trading close on or before the calendar date 52 weeks (364 days) after Week 0.
+52-week mark reached: a US trading close dated after Week 0 and on or before the calendar date 52 weeks after Week 0 is at or above the mark. The Week 0 close itself is not counted, because the time of purchase or screening within that day is not known.
+The research hurdle is therefore: can the stock reach a closing price at least 1.15 times its relevant reference price within its own 52-week evaluation window?
+
+The area-of-interest price (6.9) is a secondary, hypothetical reference point for the path assessment. It does not change Week 0 or the formal reference price.
+
+This terminology (52-week evaluation window, 52-week endpoint, within 52 weeks, 52-week path to the +15% mark) is used everywhere in the PRD. "Calendar year" is used only for the portfolio clock and the year-end checkpoint. The same convention applies to the trade outcome, the price-path outcome and any backtest. The 52-week evaluation window is this PRD's own methodology. It is not a market-wide convention for evaluating investments, and it is separate from the standard market terms "52-week high", "52-week low" and "52-week range", which keep their usual meaning (for example in the 20%-below-high rule in 6.2).
+
+
+PROBLEM STATEMENT
+
+Manual screening doesn't scale to a consistent process. Screening alone also doesn't determine returns. Position sizing, stop placement, exit discipline, concentration control, and a pre-committed invalidation level decide whether a good screen turns into a 15%+ year. This PRD covers all of those layers. A big drop from a high is not the same as undervaluation, and a passing quant screen is not the same as a tradeable thesis, so the pipeline must separate "passes the numbers" from "the story makes sense and I know what proves it wrong."
+
+
+GOALS
+
+Support weekly and event-triggered execution of Track 1 screening (Fed decisions, index shocks, earnings for held tickers, macro dashboard alerts) in a future implementation. The current manual implementation has the user invoking runs (see 6.7).
+Run the Macro Dashboard check (6.1a) at the start of every script execution, before any stock is screened, so no candidate is evaluated without a current read of the global market. (In manual mode this follows the mode rules in 6.0.)
+Apply a three-part regime check: a trend flag (SPY/QQQ), a macro-stress flag (rates), and a crash-alert flag (the Macro Dashboard). All three gate how aggressively new positions are taken. A separate Macro Drawdown / Crash-Risk Early-Warning level (6.1c) detects drawdown-risk deterioration and informs the regime guidance, the confidence placed on new candidates and the waiting recommendation, without invalidating any candidate by itself.
+Generate a technical invalidation level and a fundamental invalidation condition for every candidate, not just a candidate list. Entry-dependent stops, trailing exits and position sizing are calculated from an actual purchase or on request; sizing is advisory and the user makes the final call.
+Keep a separate, explicitly labeled exception lane for candidates that fail exactly one rule (beta), with smaller size and manual review.
+Enforce factor/theme concentration limits so correlated positions are not counted as independent.
+Produce a structured thesis and a structured invalidation breakdown for every candidate that reaches the ranked list, and for every open position.
+Track open positions against their thesis and trailing stop, flagging 90-day thesis reviews, 52-week close-out reviews and an informational, portfolio-level year-end checkpoint, using the buy and sell orders the user reports.
+Record an outcome for every stock the user buys, against the 52-week +15% mark and the 52-week evaluation window (6.10), tracking the trade outcome and the price-path outcome separately, so the user can review how the method performs.
+Preserve dual-format output (plain-language and technical). (For now both are delivered as plain text, and the technical section is provided on request.)
+Add a Top-50 Daily Losers discovery lane, with Claude triaging which names are worth the user's time.
+Add a Theme and News-Driven Discovery Lane (6.2c): narrative- and attention-first discovery of large, liquid, widely followed names, graded against the same eligibility rules as every other lane.
+Define the core Track 1 universe scan, including a fallback and a lane coverage rule, so the user always knows which lanes were run and a partial scan is never presented as the complete screen.
+Pin down the beta definition (primary beta, window, cross-check, and how beta sensitivity and beta discrepancy are handled) so the beta rule gives the same answer regardless of which website is consulted.
+Explain, for every meaningful candidate, why it fell and whether the decline is company-specific, sector/theme, macro/market, or mixed.
+Add a Valuation & Opportunity Check (6.3d) that answers whether a pullback made the company cheaper because the market repriced the shares or because expected earnings deteriorated.
+Add a Macro Drawdown / Crash-Risk Early-Warning Layer (6.1c), separate from the acute tripwires, that qualitatively classifies drawdown-risk deterioration without predicting a crash date.
+Distinguish company-specific, sector/theme, macro and systemic-risk opportunities (6.3e).
+Keep the portfolio's annual performance clock separate from each stock's 52-week evaluation clock.
+Assess, for every candidate, whether a credible path to a 15% price gain (the research hurdle) exists within 52 weeks of its Week 0.
+Adapt the amount of the PRD executed to the user's request (execution modes), with minimum necessary execution by default.
+Be comfortable returning zero candidates.
+
+
+NON-GOALS - CURRENT STRATEGY SCOPE
+
+No automated trade execution.
+No portfolio-wide rebalancing logic.
+No KRX/KLCI coverage for the screen itself. US equities only. (The KOSPI, Nikkei, Hang Seng, FBM KLCI, Taiwan, Singapore and other non-US benchmarks in the Macro Dashboard are regime inputs only, not a signal that this expands the screen to non-US equities.)
+No Track 2 (short-term bounce) screening.
+No additional tracks (re-rating, deep-value) in the current strategy scope. These are candidates for a later strategy expansion only after the Track 1 backtest, to avoid overfitting.
+No fully autonomous agentic branching.
+No automated trading on a macro dashboard alert. An alert changes flags and sizing advice and can prompt a run; it never places an order.
+No multi-agent architecture at this stage.
+No arbitrary numeric master score and no machine-learning scoring model.
+No required weekly or unattended execution, automatic delivery, automatic trading or automatic portfolio rebalancing.
+The system does not help the user execute purchases; its purpose is analysis and research.
+No guarantee of any return, bottom or outcome.
+No prediction of an exact market crash date, or of whether a crash will occur.
+
+
+USERS
+
+Single user (Jerry): self-directed position trader targeting a minimum 15% net annual portfolio return. Primary broker is IBKR TWS, whose market-data access is limited by subscriptions and account requirements. A TradingView watchlist is used for macro monitoring, and macro data (and other data IBKR cannot supply) is copied from TradingView into the prompt. The user runs the system manually, whenever research is needed, and remains the final decision maker.
+
+
+RESEARCH PRINCIPLES
+
+R1 Delegation.
+Research goes to the agent; final investment judgment remains with the human. The agent may perform: market and macro research; company and news research; candidate discovery; quantitative screening; drawdown-cause investigation; catalyst and event research; thesis construction; invalidation analysis; source reconciliation; structured comparison of candidates. The agent may provide sizing advice when the user asks for it, but the user makes the final sizing decision. The human is responsible for: deciding whether a candidate is worth acting on; deciding whether and when to enter; deciding final position size; accepting or rejecting the thesis; maintaining the investment journal; making the final trading decision. The agent is a research and decision-support system, not an autonomous trader.
+
+R2 Raw data first.
+Where raw data is available, provide and use the underlying data before forming conclusions. Do not substitute a user's summary for source data when the underlying data is available. Data from the designated source for each field (see the Source Register in 6.3b) is used directly. External research is used for news, filings, transcripts, catalysts, events and company-specific developments. User-provided exports are treated as source material and are not reconstructed from memory. The agent distinguishes: raw data, then verified facts, then interpretation, then thesis. Interpretation must not silently become fact.
+
+R3 Discernment.
+The agent must actively fact-check its own research. A source being retrieved does not make its claim correct. When sources disagree: identify the disagreement; determine which source is more authoritative or current; reconcile the discrepancy where possible; label the figure or claim as unverified when reconciliation is not possible; do not hide material uncertainty. The agent should be willing to remove a candidate after deeper investigation contradicts the initial screening result. A stock passing a quantitative screen is not sufficient evidence that it belongs on the final shortlist.
+
+R4 Diligence.
+Every material conclusion should be traceable to evidence. External figures that duplicate data available from the designated quantitative source must not silently override that source. When external numbers are used: identify their source; distinguish them from figures supplied by the designated source; reconcile important discrepancies; label unverified figures; use "verify in TWS or TradingView" where appropriate. Research distinguishes: confirmed fact; source-reported claim; analyst interpretation; uncertainty. These labels appear in output only where a claim is unverified, disputed or material, not on every sentence.
+
+R5 Purpose.
+The primary purpose of the system is analysis and research, not helping the user execute purchases. The agent identifies potentially good companies and explains: why they are interesting; why they declined; whether the decline appears company-specific, sector-wide, macro-driven or mixed; what could cause a recovery or re-rating; what evidence would confirm the thesis; what would invalidate the thesis; what the user may want to wait for before deciding. The agent helps the user find good apples; it does not tell the user what to buy.
+
+R6 Evidence before narrative.
+The agent gathers relevant evidence before constructing the narrative. Preferred sequence: evidence, then verification, then interpretation, then thesis; not an initial hypothesis followed by a search for supporting evidence. The agent must actively look for evidence that could contradict the initial thesis.
+
+R7 Research integrity.
+Never manufacture prices, earnings dates, catalysts, analyst estimates, financial metrics, news events, waiting periods or source citations. If information cannot be verified, say so. If evidence is insufficient, reduce confidence in the research rather than filling the gap with assumptions. When a discovery lane or data source could not be run, say so; never present a partial scan as the complete screen (see the lane coverage rule in 6.2).
+
+R8 Human decision boundary.
+The agent may identify candidates, explain declines, investigate news, analyze market reactions, identify potential waiting conditions, construct theses, identify invalidation conditions, compare evidence, give advisory sizing on request, and highlight risks and uncertainty. The agent does not execute trades, place orders, make the final sizing decision, guarantee a bottom, guarantee a return, or replace the user's final investment judgment. Its role is to make the user's research process more rigorous, not to make the user's investment decisions.
+
+R9 Prior context and trade records.
+Prior theses, the investment journal, open positions and the user's buy and sell orders come only from files, exports or messages the user provides, and are treated as source material. The agent never reconstructs them from memory. When the user reports a buy, the agent records the actual purchase date and price as Week 0 and the reference price for the 52-week evaluation window and for stop, trailing-exit and 90-day review calculations, and refreshes the path assessment for the new window (updated catalysts, checkpoints and invalidation levels), keeping the screening-date price and the area-of-interest price on record next to the outcome. When the user reports a sell, the position is closed in the agent's tracking and the outcome is recorded under 6.10 and compared with the original thesis, invalidation levels and 52-week path, for the user's review. The agent does not place, modify or recommend specific orders on the user's behalf.
+
+R10 Governing principle.
+The system behaves like a diligent research analyst rather than a trading bot: curious enough to investigate, skeptical enough to challenge its first conclusion, disciplined enough to follow the methodology, and restrained enough to say "I don't know" when the evidence is insufficient. The full PRD defines the available analytical framework; the user's request determines which parts are activated. Full methodology when needed. Minimum necessary execution by default. Concise plain-text output unless otherwise requested. The human remains the final decision maker.
+
+
+FUNCTIONAL REQUIREMENTS
+
+6.0 Execution Modes
+
+The full PRD defines the available methodology, but not every request needs every component. The PRD is the agent's methodology and rulebook, not a checklist to be visibly executed in every response. The agent executes the minimum relevant subset needed to answer the request properly. If a request is ambiguous, the agent uses the smallest fitting mode and states in one line which mode it assumed.
+
+Mode A - Market / News Check.
+Example: "Hey, what's the news like today? How's the market reacting?" Uses the relevant parts of: the Macro Dashboard (full); market-regime analysis; current major market-moving news; sector/theme movements; significant company-specific developments; relevant geopolitical, economic, earnings, Fed, rates or liquidity events. Output: a concise plain-text market briefing explaining what happened, how markets reacted, what appears to be driving the reaction, and what matters next. Does NOT automatically run the stock-screening pipeline.
+
+Mode B - Stock Screening.
+Example: "Screen these stocks." Runs the relevant quantitative and research screening workflow, with a light Macro Dashboard read for regime gating. Returns only the selected candidates by default, each with: reason for selection; reason for the decline; thesis; invalidation; key catalyst or confirmation; waiting condition or window where appropriate. Does not dump the entire screening process unless requested.
+
+Mode C - Discovery.
+Example: "Find me some good apples from today's market." Runs the applicable discovery lanes: the core universe scan (6.2); the Top-50 Daily Losers lane (6.2a); the theme and news-driven lane (6.2c); the relevant regime filters (full Macro Dashboard); company-specific research. Does not force a predetermined number of candidates. Always ends with the lane coverage line described in 6.2 and 6.8, stating which lanes were run and which were not.
+
+Mode D - Single-Stock Investigation.
+Example: "Why did ADBE drop today?" Focuses on the requested company. Investigates: immediate catalyst; company-specific news; sector reaction; broader market and macro reaction (light Macro Dashboard read); earnings and estimate developments (including the valuation check, 6.3d); balance-sheet or financing concerns where relevant; whether the decline appears temporary or thesis-changing. Does not run an unrelated portfolio-wide screen unless requested.
+
+Mode E - Thesis / Deep Research.
+Example: "Is the thesis on ADBE still intact?" Runs deeper company-specific research (with a light Macro Dashboard read) and produces: bull thesis; bear thesis; confirmation conditions; catalysts; price invalidation; fundamental invalidation; relevant waiting conditions; the valuation and opportunity check (6.3d); the opportunity type (6.3e); material changes since the previous thesis where prior context is provided by the user (see R9). Also used, in light form, to refresh the path assessment when the user reports a buy.
+
+Mode F - Full Diagnostic.
+Example: "Run the full diagnostic." Uses the complete applicable PRD workflow: quantitative screening (all discovery lanes), regime analysis (full Macro Dashboard), research, thesis construction, risk and invalidation analysis, and synthesis. This is the only mode in which the agent assumes the user wants the broadest applicable workflow.
+
+Macro Dashboard by mode: full in Modes A, C and F. In Modes B, D and E, a light read: Tier 1 tripwire status plus only the diagnostics relevant to the regime gating or to the cause-of-decline classification. The early-warning layer (6.1c) follows the same scope: full in Modes A, C and F; in Modes B, D and E, the most recent early-warning snapshot the user supplied, with its timestamp, or "not provided".
+
+6.1 Regime Filter (three flags plus the early-warning level)
+
+Trend flag: check SPY and QQQ price against the 30-week moving average (Weinstein stage framework). Output favorable, neutral or unfavorable. Inputs: SPY and QQQ last price and 30-week moving average, from the designated source in the Source Register (daily or weekly bars from IBKR where available, otherwise the user's TradingView paste).
+
+Macro-stress flag: output normal or stressed. Trips when either of these is true (exact thresholds to be set, see open questions):
+
+The 10-year Treasury yield (TVC:US10Y) is above a set level (starting proposal: 5.0%).
+The Fed is in an active hiking cycle.
+
+Crash-alert flag: output normal, elevated or crash, produced by the Macro Dashboard check in 6.1a.
+
+Early-warning level: Normal, Caution, Elevated, Severe, Crisis or Unavailable, produced by the Macro Drawdown / Crash-Risk Early-Warning Layer in 6.1c. It is separate from the crash-alert flag, whose values are normal, elevated or crash. The two are never merged, and any mention of the early-warning level "Elevated" names the early-warning level.
+
+Combined behavior (regime guidance, advisory; the user makes the final decision, and candidates are marked "not entry-ready under the current regime" rather than being traded or blocked by the system):
+
+Trend unfavorable, crash-alert = crash, or early-warning level Crisis: skip new entries entirely, and run an immediate review of every open position against its trailing stop and invalidation conditions.
+Trend neutral, macro stressed, crash-alert = elevated, or early-warning level Elevated or Severe: only highest-conviction setups, at no more than 50% of normal position size when sizing is requested.
+Trend favorable, macro normal, crash-alert normal and early-warning level Normal or Caution: full-size entries allowed.
+The early-warning level never invalidates a candidate by itself. It changes the regime guidance, the confidence placed on new candidates and the waiting recommendation (see 6.1c, 6.3e and 6.9). Under this table, an early-warning level of Normal or Caution does not by itself restrict full-size entries, and the level Crisis means the crash-alert flag has reached crash, so it carries the same guidance as the first row. A crash-alert flag of elevated is a serious warning state but is not labeled Crisis; it follows the second row. An early-warning level of Unavailable is treated as no information: it neither restricts nor permits entries, the other flags govern, and the output says the early-warning read is unavailable.
+
+6.1a Macro Dashboard check (runs at the start of every discovery or full run; in manual mode, scope follows the mode rules in 6.0 and the data comes from the user's TradingView paste, see 6.1b)
+
+Purpose: monitor a fixed set of instruments that cover every trading session and several asset classes, so a crash is noticed as early as possible. This is a monitoring layer. It sets flags and can prompt a run, and it never triggers a trade. It is not a discovery lane and does not expand the tradeable universe: Taiwan, Korea, Singapore, India, Japan, Hong Kong and other non-US benchmarks are contextual inputs only. Drawdown-risk deterioration is handled separately by the Macro Drawdown / Crash-Risk Early-Warning Layer (6.1c). A companion document, the Macro Benchmark Reading Guide, explains how to read each instrument; where it differs from this section, this section governs.
+
+For every instrument below, record: last price; % change on the day versus the prior settlement or close as TradingView displays it; optionally the % change over the trailing 5 trading days; and the paste time and data status (real-time or delayed) as stated by the user. Price versus the 30-week moving average is required only for SPY and QQQ (the trend flag in 6.1) and optional for other equity-index instruments.
+
+Symbols are written as TradingView shows them. The exchange prefix is part of the symbol wherever a bare ticker is ambiguous (for example NSEIX:NIFTY1! versus NSE:NIFTY1!, or CRYPTOCAP:TOTAL).
+
+Tier 1 tripwires (each is either fired or not fired):
+NQ1! (Nasdaq 100 futures): fires at -3% on the day
+ES1! (S&P 500 futures): fires at -2.5% on the day
+VX1! (VIX futures): fires at +20% on the day, or when the VIX spot level is above 25
+USDJPY (dollar vs yen): fires at -2% on the day (yen strengthening, carry-unwind signal)
+BTCUSD (Bitcoin, 24/7): fires at -8% over 24 hours (needs a dedicated 24-hour change value in the paste; the generic day-change field is not used; use one consistent exchange feed)
+ZN1! (10-year Treasury futures): fires at +0.8% on the day (flight to safety)
+
+Tier 2, Asia (confirmation):
+NIY1! (Nikkei 225 futures on CME, yen-denominated; NKD1! is the dollar version, use one): fires at -3%
+HSI1! (Hang Seng futures): fires at -3%
+CN1! (SGX FTSE China A50 futures; a China gauge that happens to be listed in Singapore, not a Singapore equity measure): fires at -3%
+K2I1! (KRX KOSPI 200 futures; whether the user's feed includes the Korean night session is unconfirmed): fires at -3%
+TXF1! (TAIFEX TAIEX futures, Taiwan; new in v2.0): fires at -3% (proposed; Taiwan is dominated by semiconductors, so this is also a read on the AI and semiconductor complex)
+SGP1! (SGX MSCI Singapore Index futures; new in v2.0): record only until its normal daily volatility has been observed and a threshold set
+FKLI1! (FBM KLCI futures): record only
+NSEIX:NIFTY1! (GIFT Nifty, India offshore Nifty futures, about 21 hours a day): record only
+
+Tier 3, Europe (confirmation):
+FDAX1! (DAX futures): fires at -3%
+FESX1! (Euro Stoxx 50 futures): record only
+
+Tier 4, context and diagnostics (record only, no firing thresholds):
+RTY1! and the RTY-NQ relative-performance spread (RTY1! day % minus NQ1! day %, computed by the agent from the pasted day changes; it is a difference of two percentage changes, not a price or return ratio), YM1!, VIX spot (TVC:VIX), ZB1!, TVC:US10Y, TVC:DXY, GC1!, CL1! and Brent (BZ1!, or the ICE Brent contract; use one consistently), USDKRW, USDMYR, USDSGD and USDTWD (new in v2.0; exact symbols to be confirmed in TradingView), CRYPTOCAP:TOTAL
+
+Regime inputs (required for the flags in 6.1, not tripwires): SPY and QQQ last price and 30-week moving average; the TVC:US10Y level.
+
+Watchlist reconciliation (user's TradingView list, October 2026):
+Matches the PRD: NQ1!, ES1!, VX1!, USDJPY, BTCUSD, ZN1!, NIY1!, HSI1!, CN1!, FKLI1!, FDAX1!, FESX1!, RTY1!, YM1!, ZB1!, GC1!, DXY, USDKRW, USDMYR.
+To fix or confirm: NIFTY1! must be NSEIX:NIFTY1! (GIFT Nifty); NSE:NIFTY1! is the onshore contract and only trades during Indian hours. K2I1! is the KRX KOSPI 200 futures contract and resolves the earlier open question about the KOSPI 200 night futures symbol, but night-session coverage must be checked on the chart. "VIX" and "TOTAL" should be TVC:VIX (or CBOE:VIX, used consistently) and CRYPTOCAP:TOTAL, because a bare "TOTAL" can resolve to a different instrument. The plain KOSPI cash index is a useful cross-check (record only), not a tripwire.
+To add: TAIFEX:TXF1!, SGX:SGP1!, TVC:US10Y, CL1!, Brent, SPY, QQQ, USDSGD, USDTWD.
+To drop or relabel: MYRUSD is the inverse of USDMYR (a rising number means a stronger ringgit, the opposite sign), so it adds no information and risks a sign error when pasted. Keep one of the two; the PRD uses USDMYR.
+Optional Taiwan alternative: SGX FTSE Taiwan futures (TWN), USD-denominated and listed in Singapore; TXF1! is the primary.
+
+Crash-alert flag logic:
+
+Count the Tier 1 tripwires fired. In manual mode this is the pasted snapshot (see the snapshot rule in 6.1b); the trailing-24-hours definition applies if collection is automated.
+0 or 1 fired = normal. 2 or 3 fired = elevated. 4 or more fired = crash.
+If two or more Tier 2 or Tier 3 instruments (NIY1!, HSI1!, CN1!, K2I1!, TXF1!, FDAX1!) have also fired, raise the flag one level (normal to elevated, elevated to crash). K2I1! and TXF1! are both semiconductor-heavy. They remain separate confirmations in the count (user decision), but correlated signals may represent one underlying stress dimension, so the output notes when the confirmations come from a single cluster. A later refinement may group instruments into confirmation clusters: US equity, Asia/semiconductor, Europe, rates/bonds, FX/carry and crypto.
+A single instrument firing alone, especially BTCUSD alone, is never enough to leave normal.
+
+Suspected regime type (informational, must be confirmed by a human before acting on it):
+
+Stocks down and bonds down (ZN down, US10Y up) = rates-driven selloff
+Stocks down, ZN up, yen up, gold up = classic risk-off
+Stocks down, gold down, dollar up = liquidity squeeze or forced selling
+Yen up sharply and Nikkei down the most = carry-trade unwind
+NQ down much more than RTY = tech/AI valuation scare
+Taiwan and Korea down much more than Japan and Hong Kong, with NQ down more than RTY = AI/semiconductor-specific scare
+RTY down much more than NQ = growth or credit scare
+Only BTC or CRYPTOCAP:TOTAL down = probably crypto-specific
+Rate-driven or liquidity-driven readings should be flagged more strongly against rate-sensitive candidates (see 6.3 rate-sensitivity check).
+
+Weekly gap check: on the first run after US futures reopen on Monday (about 06:00 Malaysia time, shifting to about 07:00 after US clocks go back on Nov 1, 2026), the user pastes ES1! and NQ1! with their change versus Friday's close, plus BTCUSD's move across the weekend (read from the chart), and the agent reports them.
+
+Data sourcing rule: Macro Dashboard data comes from the user's TradingView paste (6.1b), labeled "TradingView (user-pasted)" with the paste time and data status. It is treated as source material (R2). It is never reconstructed from memory and never filled in from web search; the agent may add news-level market context from web research only if it is clearly labeled as news context and not as instrument data. IBKR data for any Macro Dashboard instrument the account supports is optional and untested. Macro Dashboard numbers feed only the regime flags. They are never used as inputs to the stock-level numeric filters.
+
+Contract rollover rule: TradingView continuous contracts (the "1!" symbols) roll to the next contract around expiry, and the day change shown can include a roll gap. The agent cannot detect a roll from pasted numbers. Around expiry periods (quarterly index and Treasury futures expire in March, June, September and December; VIX futures expire monthly), an unusually large move in one instrument that is not confirmed by related instruments is flagged as a possible roll artifact, and the user is asked to check the contract month before the tripwire is counted as fired.
+
+6.1b Manual TradingView Input Protocol (new in v2.0)
+
+Purpose: IBKR data access is limited and TradingView has no public data API, so in this version the macro data (and any stock data IBKR cannot supply) reaches the agent because the user copies it from TradingView into the prompt. Pasted data is source material (R2).
+
+What to paste, by mode:
+Modes A, C and F: the full Macro Dashboard watchlist (6.1a), plus SPY and QQQ with their 30-week moving average values (or a statement of whether each is above or below its 30-week average).
+Modes B, D and E: the six Tier 1 instruments plus TVC:US10Y. SPY and QQQ trend inputs only when new entries are being considered.
+Stock-level fields that no other source supplies: see the Source Register (6.3b).
+Early-warning inputs (6.1c): in Modes A, C and F the user pastes whichever early-warning indicators are available to them, with timestamps. None is mandatory. In Modes B, D and E the agent uses the most recent early-warning snapshot supplied, stating its timestamp, or reports "not provided".
+
+Accepted formats: pasted watchlist text, CSV, typed lines, or a screenshot. For a screenshot the agent transcribes the values and shows the transcribed table back for confirmation if any value is unclear. Minimum per line: symbol (with exchange prefix where ambiguous), last, day change %. Optional: 5-day change %, position versus the 30-week moving average. For BTCUSD, the 24-hour change % (price now versus price 24 hours earlier) is required; if it is not provided, the BTCUSD tripwire is "not provided". The user states the paste time (local time) and whether TradingView shows the data as real-time or delayed.
+
+Agent checks on every paste:
+Missing instruments are listed as "not provided" and are never filled from memory.
+Ambiguous symbols are queried (for example NIFTY1! without an exchange prefix: confirm it is NSEIX:NIFTY1!).
+Sign and unit sanity (for example USDMYR versus MYRUSD; yield levels versus bond prices).
+Staleness: a paste that mixes sessions (for example closed Asian markets showing last close beside live US futures) is labeled as such, and closed markets are reported as "last close", not live.
+Outliers that related instruments do not confirm are queried (possible typo or roll artifact) before a tripwire is counted.
+
+Snapshot rule: a single paste cannot show "fired in the trailing 24 hours". In manual mode the crash-alert count uses the day-change values as pasted, and the output states that it is a snapshot. A tripwire that fired earlier and has since recovered will be missed. If the user suspects an earlier spike, they can paste the day's high and low or say so, and it is recorded as user-reported.
+
+General snapshot principle: wherever manually supplied market data is used (the macro paste, a Top-50 list, a screener result, stock price data), the agent evaluates the information as of the stated snapshot time and does not silently substitute later data. Newer data supplied later is treated as a new snapshot.
+
+Time zones: Malaysia, Singapore, Taiwan and Hong Kong share UTC+8. Korea and Japan are UTC+9, one hour ahead.
+
+Automation (not required): TradingView offers no public API for market data or indicator values, on any plan (checked October 2026). The only officially supported outbound route is webhook alerts, which need a paid plan and push alert events rather than full snapshots. Scrapers are unofficial and may breach TradingView's terms, so they are not adopted. If automation is wanted later, the options to evaluate are IBKR market-data subscriptions, another market-data provider, or logging webhook alerts (see Open Questions).
+
+6.1c Macro Drawdown / Crash-Risk Early-Warning Layer (new in v2.2)
+
+Purpose: the Macro Dashboard tripwires (6.1a) detect acute stress, meaning a risk event that is already developing. This layer looks for conditions under which the probability and potential severity of a broad equity drawdown are increasing. It asks one question: are multiple independent market indicators deteriorating in a way that materially increases the risk of a broad equity drawdown? It does not predict a crash date, does not say that a crash will or will not happen, and does not replace the tripwires, which remain the acute-event detection mechanism. It is a reference and regime-context layer, not a discovery lane, and international markets remain contextual inputs only; they do not expand the US stock universe.
+
+Indicator dimensions. Each indicator is used only where a timestamped, reliable source exists, and none is mandatory. Candidate sources are recorded in the Source Register (6.3b).
+Breadth and participation: S&P 500 cap-weighted versus equal-weight performance; the percentage of S&P 500 stocks above their 200-day moving average; advance/decline deterioration; new highs versus new lows; breadth divergence while SPY and QQQ remain near highs.
+Credit stress: the direction of the high-yield credit spread; the direction of the CCC or other high-risk credit spread where available; whether credit stress is broadening from speculative debt into investment-grade credit.
+Volatility and market structure: the VIX/VX level; the VIX/VX term structure (contango versus backwardation) where available; persistent volatility expansion rather than a one-day spike.
+Rates and liquidity: TVC:US10Y and relevant rate trends; yield-curve stress where available; broad tightening of financial conditions where measurable.
+Valuation and sentiment (risk amplifiers, not triggers): the S&P 500 forward P/E relative to its long-term history; CAPE or another long-horizon valuation measure where reliably available; sentiment and positioning indicators where a timestamped, reliable source exists. Valuation alone never raises the early-warning level. It is recorded as a vulnerability that can amplify the other dimensions.
+
+"Deteriorating" is judged by the agent with the data shown: the indicator is moving in the adverse direction over its recent window and has moved materially away from its own recent range. Windows and thresholds are not fixed in this version (see Open Questions). Correlated indicators that measure the same thing count as one dimension. There is no numeric score and no weighting; the level is a qualitative classification.
+
+Early-warning level:
+Normal: no meaningful deterioration.
+Caution: one or two indicators are deteriorating, but without broad confirmation.
+Elevated: multiple independent dimensions (breadth, credit, volatility, rates and liquidity) are deteriorating at the same time.
+Severe: broad deterioration across breadth, credit and volatility or rates, with the acute tripwires becoming easier to trigger (for example the VIX term structure flattening or inverting, or tripwires approaching their thresholds).
+Crisis: acute crash conditions are actually firing, meaning the crash-alert flag (6.1a) is crash. A crash-alert flag of elevated remains a serious warning state, handled by the second row of the regime guidance in 6.1, but is not itself labeled Crisis.
+Unavailable: fewer than two independent dimensions have usable, timestamped data. The layer never defaults to Normal when data is missing.
+
+Influence (advisory). The level feeds three things only: the regime guidance in 6.1, the confidence the agent places in new candidates, and the waiting recommendation (6.9). It does NOT automatically invalidate any stock candidate. A high-quality company that is 25% cheaper during a broad market pullback can still be attractive. The output states explicitly whether the candidate is a company-specific opportunity during a reasonably healthy market or a setup in a deteriorating systemic regime (opportunity type, 6.3e).
+
+Data and snapshots. Inputs are timestamped snapshots under the general snapshot principle (6.1b). Values the user pastes are user-supplied. Where the user does not paste an indicator that a public source publishes (for example a credit spread series or a published valuation figure), the agent may retrieve it through web research, labeled with its source, publication date and "research-sourced", and never silently mixes it with pasted instrument data. Tripwire instruments are never filled this way (6.1a). Missing indicators are listed as "not provided". The Macro Dashboard block in 6.8 shows the early-warning level, the dimensions it is based on (with the evidence), the dimensions deteriorating, and the dimensions not provided. Any historical evaluation follows the point-in-time rule.
+
+
+6.2 Data Layer (Quantitative Screen)
+
+Quantitative data comes from the designated source for each field in the Source Register (6.3b): IBKR (through the Claude connector, or ib_insync / ib_async against TWS) for the price-based fields it can supply, and user-supplied TradingView data or external sources, labeled by source, for fields IBKR cannot supply. No source is assumed to be available, real-time or complete until tested. Every figure carries its source and timestamp. Where two sources give different values, the Source Hierarchy in 6.3a applies.
+
+Discovery lanes and eligibility. The system has three discovery lanes, which differ in how a name is found and in their role: the core universe scan (rule-first; the primary systematic screen), the Top-50 Daily Losers lane (6.2a; event- and dislocation-first; secondary), and the theme and news-driven lane (6.2c; narrative- and attention-first; supplementary). The Macro Dashboard (6.1a) is not a discovery lane. Every lane converges on the same eligibility rules (the core Track 1 rules and the exception lane), the same research layer, and the same thesis, invalidation and waiting framework. Discovery method never waives an eligibility rule, and the hierarchy describes each lane's role, not a ranking preference. Until the core universe scan is verified and running (see Universe and scan definition below), the other lanes are the practical way to cover names the scan would otherwise cover, and output states which lanes ran.
+
+Core Track 1 screen:
+
+20%+ below 52-week or 2-year high
+Positive TTM net margin
+Positive EPS growth (trailing, not just forward guidance)
+Debt/equity < 2.0
+Market cap > $2B
+Beta < 1.3 (beta is defined in the Beta Definition below)
+
+Universe and scan definition (core Track 1 screen):
+
+Universe. US-listed common stocks (NYSE, Nasdaq and other US primary listings), excluding ETFs, funds, SPACs, preferred shares and non-US primary listings. The US-equities-only non-goal is unchanged. The core scan pre-filters on the market cap rule and the practical floors in 6.2b, then applies the remaining Track 1 rules per ticker.
+
+Scan method. Preferred: a scanner that returns drawdown from the 52-week high, market cap, price and volume for the whole eligible universe, followed by per-ticker price data and the fundamentals checks. In October 2026 testing the Claude IBKR connector exposed no scanner. Whether the TWS API scanner is available on the user's account, and whether TradingView's Stock Screener can supply the same fields, is unverified until tested in Build Step 0. It is not assumed.
+
+Fallback. If no scanner can supply the pre-filter fields, the universe comes from, in order: (1) a scanner or screener result the user provides (for example a TradingView Stock Screener result or a TWS Market Scanner result, pasted, exported or screenshotted), treated as source material; (2) an alternative designated source documented in the Source Register. If neither is available, the core universe scan is reported as NOT RUN, and only the lanes that were actually run (6.2a, 6.2c, or a user-supplied list) are reported.
+
+Lane coverage rule. Every discovery output (Modes C and F) states in one line which lanes were run (core universe scan, Top-50 losers, theme and news) and which were not. A result is never described as the complete screen output unless the core universe scan ran, and a shortlist from partial lanes is described as partial.
+
+Beta definition:
+
+Primary beta. The beta used for the beta rule (core: below 1.3; exception lane: 1.3 to 1.8) is the IBKR-provided beta where IBKR supplies it (not observed through the Claude connector in October 2026), with its window and benchmark documented after verification. Until verified, the provisional primary beta is the 5-year monthly beta versus the S&P 500 as published by a named external source (for example Yahoo Finance), always labeled with source and window. The primary beta alone determines eligibility and lane (core, Track 1X, or excluded).
+
+Beta sensitivity (cross-check). Where practical, compute a 1-year daily beta versus SPY from daily price bars (IBKR where available) in code. A beta the user pastes from TradingView may serve as this cross-check when its window is stated (TradingView's beta window is unverified). Different windows and methods answer different questions, so a different value is not an error. The cross-check is shown next to the primary beta whenever either value is within 0.2 of a threshold. A candidate whose cross-check falls on the other side of 1.3 or 1.8 from the primary beta is labeled "Beta sensitivity" and receives extra manual scrutiny. The label does not change the candidate's lane or size.
+
+Beta discrepancy. If two sources report materially different values for the same metric and window (proposed: differing by more than 0.2, or falling on different sides of a threshold), that is a data problem, not a sensitivity. The figure is labeled "Beta discrepancy", reconciled where possible (the IBKR value governs where IBKR supplies it), and otherwise marked unverified with "verify in TWS". Beta values are never quoted without source and window.
+
+Additional fields per candidate:
+
+Percent above 52-week low. Flag if more than 40%, since the stock may already be bouncing.
+Percent change over the trailing 30 days. Flag if greater than +15%, since the stock may already have run too far to be a fresh entry.
+Forward P/E and PEG, displayed next to the drawdown so distance from high is never read as valuation (see the Valuation & Opportunity Check in 6.3d, which is a diagnostic and not an eligibility rule).
+Trailing EPS growth rate over the last 1-2 reported quarters, separate from forward guidance. A stock with negative trailing EPS growth and only positive forward guidance is flagged, not auto-passed.
+Estimate revision trend over the last 60-90 days (Improving, Stable or Falling). Falling revisions into an upcoming print are a disqualifying combination even if the drawdown and beta both pass.
+Off-balance-sheet or near-term financing risk: flag if the company has disclosed large unfunded lease commitments, active new debt/equity raises, or negative free cash flow alongside its revenue growth. Debt/equity alone can miss this.
+Leadership-stability flag: flag any CEO, CFO, or other senior departure within the trailing 90 days, separate from the stabilization check in the next paragraph. A leadership-driven gap-down is treated as event risk requiring its own cooldown, not a normal pullback.
+Next earnings date.
+ATR(14) and recent swing-low data for stop placement.
+
+Stabilization check (required before a candidate is marked entry-ready): the stock must show a higher swing low, or a close above the 10-week moving average, and must NOT already be flagged under the +15%-in-30-days rule above. A candidate flagged under the leadership-stability flag additionally requires a scheduled company event (investor day, earnings, analyst day) to have passed with no further negative news before it can be marked entry-ready. Otherwise it stays on the watchlist. A candidate whose data status is Provisional also cannot be marked entry-ready until the provisional input is verified or reconciled (see 6.3c). (These conditions are confirmation tools, not guarantees of a bottom. A candidate that is interesting but not yet stabilized is labeled "Watch (not entry-ready)".)
+
+Exception lane (Track 1X): a candidate that passes every core rule except beta, with primary beta between 1.3 and 1.8, goes into a separate lane. Exception-lane candidates require manual review, are limited to half of normal position size, and are logged and backtested separately from core Track 1 so results stay honest. A beta above 1.8, or a fail on any rule other than beta, is excluded outright, not routed to the exception lane.
+
+Re-entry alerts: a stock that fails only because it has recovered to less than 20% below its high goes on an alert list, triggering if it falls back to 20% below. It is not a new track.
+
+Near-miss threshold alerts (proposed in v1.8): "Near-miss" is reserved exclusively for a candidate that fails only the drawdown rule because it is currently less than 20% below its high (for example 18% below). A beta-only failure is Track 1X, and a failure of any other rule is Excluded. A near-miss candidate may go on the same alert list, triggering when it reaches 20% below. It is not a new track, and it is not a waiver of the drawdown rule.
+
+Source verification: before implementation, verify for each quantitative rule which source supplies it (see the Source Register in 6.3b): the exact fields, permissions, real-time or delayed status and any gating, for IBKR (TWS/API and the Claude connector) and for TradingView (watchlist columns, screener fields and export options on the user's plan). Do not assume a field exists, is real-time, or is available through a particular interface merely because it appears in a third-party example. Where a required field cannot be supplied, designate an alternative source and document its status. All sources are treated as unverified until tested, and the register records what was observed and when.
+
+6.2a Top-50 Daily Losers Discovery Lane
+
+The research layer already investigates why a stock declined, but that is not a discovery scan. This lane is a secondary discovery mechanism, not an automatic buy list. It is event- and dislocation-first: it starts from sudden one-day drops, and whatever it surfaces is graded by the same eligibility rules as every other lane. A large one-day decline is not inherently more attractive than a slower, deeper pullback.
+
+Snapshot: every manually supplied Top-50 list is recorded with its timestamp and its status (intraday or end-of-day), and the lane evaluates that snapshot as stated. "Today's losers" is always tied to a stated time and is never replaced by a later list.
+
+Workflow:
+
+Apply the practical floors in 6.2b first, then identify the top 50 daily US equity losers from the remaining universe (so the user gets 50 meaningful names, not 50 minus filtered).
+Claude triage: Claude judges which of the names are worth the user's time and which are not, with a one-line reason for each exclusion available on request. Triage considers business quality, the likely cause of the decline, balance-sheet and financing risk, liquidity and trading quality, and whether the decline appears to damage or preserve the underlying thesis.
+Investigate why each meaningful candidate declined and classify the decline as company-specific, sector/theme, macro/market, or mixed (see 6.3).
+Determine whether the decline damages or preserves the underlying thesis (good apple versus damaged apple, see 6.3).
+Pass surviving candidates into the normal research and thesis workflow. The core numeric rules in 6.2 still determine how each survivor is labeled (entry-ready, Watch (not entry-ready), Track 1X, or excluded). Claude's triage decides which names get researched; it does not waive the core rules.
+
+A candidate found through this lane is usually "Watch (not entry-ready)" by definition, since a stock that dropped today cannot yet show a higher swing low.
+
+6.2b Practical Floor (Penny-Stock Exclusion)
+
+A practical price and liquidity floor removes penny-stock-like names from the Top-50 universe and from the core universe scan and the theme and news-driven lane. The project's operational floor is not the formal legal definition of a penny stock, and must not be described as such. Starting guard rails (proposed, adjustable): price at or above $5, average daily dollar volume (average daily shares traded multiplied by price) at or above $10M, market cap at or above $2B (consistent with Track 1). The dollar-volume figure is a tunable starting value, to be tested rather than treated as settled. Share volume alone is not used, because the same share count means very different liquidity at different prices. Price alone is insufficient. Claude also considers spreads, trading quality and financing risk when judging whether a candidate is appropriate for this system.
+
+6.2c Theme and News-Driven Discovery Lane (new in v1.8)
+
+Purpose: supplementary, narrative- and attention-first discovery of large, liquid, widely followed names tied to the market's current leadership, themes and news. This is the approach that surfaced NOW, ADBE and AVGO in the v1.0 scan (slow drawdowns of roughly 28 to 35% in large caps). It exists alongside the core scan, not because the core scan is blind to such names: a complete core universe scan would also see a stock 30% below its high, and might still exclude it on other rules. Until the core scan is verified and running, this lane is also the practical way to cover them. It is a discovery mechanism, not a buy list.
+
+Workflow:
+
+Theme and news scan. Using web research and the connectors in 6.3a, identify the themes currently driving the market (for example AI infrastructure, software and AI-disruption, rates and yield, energy, industrials) and the large-cap names central to each, using the Macro Dashboard and regime read for context.
+Candidate set. Apply the practical floors in 6.2b. The list is kept to a size the user can realistically review (proposed: typically 5 to 15 names, adjustable, never padded to reach a number).
+Grade every name against the core Track 1 rules. The price-based fields (drawdown from high, percent above 52-week low, 30-day change, moving averages, ATR, swing lows) come from the designated source in the Source Register (IBKR where available, otherwise user-supplied TradingView data). Beta, debt/equity, margins and EPS growth come from the sources designated in 6.3a, labeled by source and unverified until reconciled. Each name receives one label: Core Track 1, Track 1X, Near-miss (fails only the drawdown rule; state how far it is from the 20% line; eligible for a threshold alert), or Excluded (state the rule or rules that exclude it).
+Research. Names labeled Core Track 1, Track 1X or Near-miss that are worth the user's time go through the normal research and thesis workflow (6.3, 6.4), including drawdown cause, financing flags and leadership flags.
+Rules of restraint. Theme relevance, popularity, media or analyst attention, and the fact that a name is widely discussed never waive a numeric rule and are not evidence of edge. They are context only. A name found only through this lane carries the tag "theme-sourced" through ranking (6.6) and outcome tracking (6.10). Because this lane depends on judgment and current news, it cannot be backtested the way the numeric lanes can; it is evaluated by forward outcome logging (6.10).
+
+6.3 Research Layer (Qualitative Screen)
+
+Claude API call with web search, surfacing named candidates with sourcing (why flagged, what data point, how current). (Research may also be executed by Claude in chat using the Skill; which route is primary is undecided, see Open Questions.)
+
+The research layer supplies narrative and catalysts only. It must not supply numeric data that the designated source provides. If a number appears in research, it is labeled unverified and reconciled against the designated source before use. (External numeric data, for example from S&P Global or Bigdata.com, may be used where it fills a gap or aids verification, but it is labeled by source, never silently overrides the designated source, and important discrepancies are reconciled; see 6.3a.)
+
+Explicitly checks:
+
+Has anything changed in the fundamental thesis recently (earnings, guidance, sector news, insider selling, leadership change) that the quantitative filter wouldn't catch?
+Are forward earnings estimates Improving, Stable or Falling?
+Is the company's balance sheet at risk from off-balance-sheet obligations, heavy new financing, or negative free cash flow that the debt/equity ratio would hide?
+Is the drawdown explained by a company-specific negative catalyst (guidance cut, lawsuit, earnings miss, leadership departure) versus a sector-wide or macro-driven repricing? A company-specific negative catalyst that is still unresolved is a stronger reason to exclude than to include, even if the quant numbers technically pass.
+Is the stock's decline actually a rate-sensitivity story (a high dividend yield that needs lower rates to re-rate) rather than a fundamentals story? Flag this explicitly, since the macro-stress flag in 6.1 will usually argue against entering these while it's tripped.
+Does the current Macro Dashboard reading (6.1a) point to the same cause as the stock's decline? For example, a candidate in the AI-capex theme while the NQ1! tripwire has fired, or a rate-sensitive candidate while the suspected regime type is rates-driven. Report this as context, not as a verdict.
+
+Drawdown-cause investigation. For every meaningful candidate identified because of a substantial decline, answer "why did it fall?" and classify the decline as primarily:
+
+Company-specific: CEO/CFO departure; earnings miss; guidance reduction; customer loss; product failure; regulatory issue; litigation; financing or dilution; project cancellation; material fundamental deterioration.
+Sector/theme-wide: semiconductor selloff; software multiple compression; AI-capex concerns; consumer slowdown; housing-cycle deterioration.
+Macro/market-wide: rates shock; Fed repricing; recession fears; liquidity event; broad risk-off move; geopolitical shock.
+Mixed: clearly separate the components rather than forcing a single explanation.
+The Macro Dashboard is used to determine whether the broader market reaction is consistent with the stock's decline.
+
+Good apple versus damaged apple. A large decline is not itself evidence of opportunity. The agent must distinguish:
+
+Good company plus temporary repricing
+Good company plus damaged thesis
+Weak company plus justified decline
+Unclear cause or insufficient evidence
+A candidate does not survive merely because it has fallen substantially from its high.
+
+6.3a Source Hierarchy, Source Conflicts and Connector Trust Model
+
+Source hierarchy. Use the most appropriate source for each type of information.
+
+Quantitative and structured data: the designated source for each field in the Source Register (6.3b). IBKR is preferred for price-based fields where it works; user-supplied TradingView data and external sources fill the gaps, labeled by source.
+Company, news and research evidence: reputable external sources for breaking news, regulatory filings, earnings releases, transcripts, analyst and estimate developments, company announcements, management changes, partnerships, projects, sector developments and macro developments.
+External numeric data must not silently override the designated quantitative source.
+
+Source conflicts. When two sources disagree: prefer the Source Register's primary source for that field; investigate whether the difference is caused by timing, methodology, reporting period, window or data definition; label unresolved discrepancies; do not fabricate a reconciliation. Use "verify in TWS or TradingView" where appropriate.
+
+Connectors.
+
+Bigdata.com: an evidence source for the research layer (company developments, regulatory information, transcripts, market information, sentiment).
+S&P Global: an evidence source for structured financial and company research (company information, financial statements, earnings-related information, estimates, prices, segments, transcripts, where the connected service provides them). Important numerical discrepancies are reconciled against the designated quantitative source.
+Generic connectors such as "Data" or "Finance" are not assumed to be an authoritative provider. Before relying on one for a material claim, establish who provides the underlying data, what data is available, how current it is, whether it is primary or aggregated, and whether it overlaps with IBKR or another designated source. Until verified, they are not evidence sources.
+The "Engineering" connector is for building, debugging, testing and maintaining the research system, not a financial evidence source.
+No connector is treated as automatically authoritative because it is available. Connectors are tools for retrieving evidence, not replacements for judgment.
+
+Connector trust model: evaluate provider, then data type, then timestamp, then primary or secondary source, then consistency, then materiality, before relying on a claim.
+
+6.3b Source Register (new in v2.0)
+
+The register records, for each group of fields, the designated source, the fallback, and what has actually been observed. Status values: observed working, not observed, untested, user-supplied. The register is updated whenever a source is tested.
+
+Observed availability of the Claude IBKR connector, October 2026: last price, 52-week, 26-week and 13-week highs and lows, volume, dividend yield, historical volatility and 3-month daily bars were returned (data outside market hours was flagged as frozen, and some performance fields came back empty). The connector exposed no scanner and no fundamentals tool, and futures, indices and FX used by the Macro Dashboard were not tested. This describes the connector and may differ from the TWS API. The user reports that some IBKR data is gated behind paid market-data subscriptions or account requirements; the exact conditions are unconfirmed.
+
+Stock price, 52-week and shorter-window highs and lows, volume, daily bars (for 10-week and 30-week moving averages, ATR(14), swing lows, 30-day change, percent above 52-week low): IBKR through the Claude connector (observed working; may be delayed or frozen outside hours). Fallback: TradingView values pasted or screenshotted by the user (user-supplied).
+Beta: not observed in the IBKR connector. Primary: the 5-year monthly beta from a named external source, labeled with source and window (v1.9 rule). Cross-check: a 1-year daily beta versus SPY computed from daily bars (SPY bars untested), or the beta TradingView shows, pasted by the user, with its window stated (window unverified).
+Market cap, debt/equity, TTM net margin, EPS and trailing EPS growth: not observed in the IBKR connector. In order: S&P Global or Bigdata.com connectors where the account has them (untested); company filings and reputable financial sites through web research, labeled by source; TradingView financials or screener fields pasted by the user (user-supplied).
+Forward P/E, PEG, estimate revisions and next earnings date: as above, with the earnings date cross-checked against the company's own announcement.
+Forward P/E history (3-year and 5-year), peer forward P/E and forward EPS growth expectations for the Valuation & Opportunity Check (6.3d): not observed. In order: S&P Global or Bigdata.com where the account has them (untested); reputable financial sites through web research, labeled by source and date; TradingView fields pasted by the user (user-supplied). These are not mandatory inputs.
+Leadership changes, financing and off-balance-sheet risk, free cash flow: external research (filings, news), labeled by source.
+Core universe scan and daily losers list: IBKR scanner not observed through the connector. Alternatives: a TradingView Stock Screener result pasted, exported or screenshotted by the user (export options by plan unverified), or a TWS Market Scanner export the user provides; otherwise the lane is NOT RUN.
+Macro Dashboard instruments and regime inputs (SPY, QQQ, US10Y): TradingView manual paste (6.1b), user-supplied. IBKR for any of these is optional and untested.
+Early-warning indicators (6.1c): untested. Candidate sources: TradingView breadth and index symbols (for example the percentage of S&P 500 stocks above the 200-day average, equal-weight versus cap-weighted S&P 500, advance/decline, new highs and lows; exact symbols to be confirmed); VX1! and VX2!, or VIX versus a longer-dated VIX measure, for term structure; TVC:US10Y and a shorter-dated yield for the curve; credit spreads and financial-conditions indexes from public series such as FRED (published with a delay, so each value carries its publication date); S&P 500 forward P/E and CAPE from published sources; sentiment from timestamped published surveys. Each indicator's source, timestamp and status are recorded when it is first tested.
+Theme and news inputs for 6.2c: reputable external sources (web research, Bigdata.com and S&P Global connectors where available), labeled by source.
+
+
+6.3c Candidate Data Status (new in v2.1)
+
+Every graded candidate carries one data status that summarizes how complete and reliable its mandatory inputs are. It is a category, not a numeric score. The detailed source, timestamp, data status and fallback for each field stay in the Source Register (6.3b).
+
+Mandatory inputs: the six core-rule inputs (drawdown from the 52-week or 2-year high, TTM net margin, trailing EPS growth, debt/equity, market cap, primary beta) and the stabilization inputs (recent swing lows, the 10-week moving average, the 30-day change).
+
+Verified: every mandatory input is present, from a source the register marks observed working or from primary documents (filings, company releases), with a timestamp and no unresolved discrepancy.
+Mixed-source: every mandatory input is present, but at least one comes from a secondary or user-supplied source (an aggregator site, a TradingView paste or screenshot), with no unresolved discrepancy.
+Provisional: every mandatory input is present, but at least one is untested, delayed in a way that matters, on an unverified window (beta, for example), or in an unresolved discrepancy.
+Data incomplete: at least one mandatory input is missing.
+
+Effect on labels (user decision):
+Verified and Mixed-source candidates can receive any label the rules allow, including entry-ready where the stabilization and other conditions are met.
+A Provisional candidate can be graded, but it cannot be marked entry-ready. It stays "Watch (not entry-ready)" until the provisional input is verified or reconciled.
+A Data incomplete candidate cannot be graded. It receives no Core Track 1, Track 1X, Near-miss or Excluded label and is reported as "Cannot be graded: data incomplete", listing the missing inputs. The agent may report an available input that already fails a core rule as an observation, but assigns no label. Research on the company may still proceed.
+
+The status is shown next to the label in output (6.8) and is reassessed whenever an input changes.
+
+
+6.3d Valuation & Opportunity Check (new in v2.2)
+
+Purpose: for every candidate that reaches research, answer one question: is this stock cheaper because the market repriced the shares, or because the underlying earnings outlook deteriorated? The check is a diagnostic in the research layer. It is not a Core Track 1 eligibility rule, and forward P/E is never a pass/fail filter, because a low forward P/E alone does not prove that a stock is undervalued. It feeds the thesis and does not replace it. There is no score and no composite.
+
+Where available, capture the following, with a source and timestamp for every number:
+Current forward P/E (next twelve months).
+Forward P/E relative to the company's own history, preferably the 3-year and/or 5-year range.
+Forward P/E relative to relevant sector or industry peers.
+Forward EPS growth expectation.
+Direction of forward EPS estimate revisions: Improving, Stable or Falling (the 60-90 day window in 6.2).
+The compression driver: whether any compression in forward P/E came primarily from falling price, rising earnings estimates, or falling earnings estimates.
+
+Favorable valuation compression: the share price has fallen materially; forward earnings estimates are Stable or Improving; forward P/E has compressed relative to its own history and/or relevant peers; and the fundamental thesis remains intact.
+Potential value-trap compression: the share price has fallen, forward earnings estimates have also been materially cut, the lower P/E mainly reflects deteriorating expected earnings, and fundamental damage may explain the apparent cheapness.
+
+Output (plain text, concise):
+Valuation opportunity: Favorable, Neutral, Unfavorable or Unavailable
+Forward P/E: [value, source, timestamp]
+Historical comparison: [versus the company's own 3-year and/or 5-year range]
+Peer comparison: [versus named peers or the industry]
+Earnings estimate trend: Improving, Stable or Falling
+Interpretation: [brief explanation, stating the compression driver]
+
+Labels. Favorable: favorable valuation compression. Unfavorable: potential value-trap compression, or the pullback has not made the company cheaper than its own history and peers. Neutral: mixed or inconclusive (for example modest compression, or small estimate cuts). Unavailable: the needed inputs could not be sourced; the missing items are named. Unavailable does not make a candidate Data incomplete, because valuation inputs are not mandatory inputs (6.3c).
+
+The check never overrides the core rules, the stabilization check or the existing flag for falling estimates into an upcoming print (6.2). Any historical evaluation uses only prices and consensus estimates that were available at the screening date (point-in-time rule).
+
+6.3e Opportunity Type (new in v2.2)
+
+Every candidate that reaches research is assigned one opportunity type, which states what kind of opportunity it is and how the market regime bears on it. It is separate from the apple status in 6.3 (company quality) and from the cause classification (why it fell). A good apple can still be a Systemic-risk setup.
+
+Company-specific opportunity: the stock is cheap primarily because of a stock- or company-specific event while the broader market remains reasonably healthy.
+Sector/theme opportunity: the whole sector or theme has repriced, but the company's fundamentals remain stronger than its peers'.
+Macro opportunity: a broad market drawdown has repriced otherwise healthy companies.
+Systemic-risk setup: the stock may look cheap, but the broader macro, credit and breadth regime is deteriorating enough that waiting may offer a better risk/reward.
+
+Assignment (proposed). Start from the cause classification in 6.3. When the early-warning level (6.1c) is Elevated, Severe or Crisis and the decline is sector/theme, macro/market, or mixed with a macro component, the type is Systemic-risk setup. A purely company-specific decline stays a Company-specific opportunity, but the output states the early-warning level next to it. When the early-warning level is Normal or Caution, the type follows the cause classification (Company-specific, Sector/theme, or Macro). When the early-warning level is Unavailable, the type follows the cause classification and the output says the regime read is unavailable. The output always states both the opportunity type and the early-warning level, so the user can tell whether this is a company-specific opportunity in a healthy correction or a step into a deteriorating systemic regime. A Systemic-risk setup is not an exclusion; it is a prompt to weigh waiting (6.9).
+
+
+6.4 Thesis and Invalidation Breakdown
+
+For every candidate that reaches the ranked list, and for every open position, the pipeline generates a structured writeup with these fields:
+
+Bull thesis (2-4 sentences): the specific, falsifiable reason the stock should re-rate within 6 months. ("Within 6 months" means the thesis, catalyst or re-rating should begin to materialize in that window. It is not a requirement that the investment be completed within 6 months.)
+Bear thesis (2-4 sentences): the specific reason this could fail, stated as concretely as the bull case.
+Key catalysts and dates: named events inside the 6-month window that would move the stock and confirm or deny the thesis.
+Thesis confirmation metric: the single data point that, if it shows up in the next earnings report or update, tells you the bull case is playing out.
+Technical invalidation level (price): a relevant structural level, such as the most recent swing low, below which the technical setup is broken, stated as a specific number. For an unpurchased candidate this is a research reference, not a trading stop.
+Invalidation condition (fundamental): the specific event or data point that breaks the thesis even if price hasn't hit the stop yet.
+Correlation/theme tag: which factor bucket this belongs to (see 6.4a), so 6.5's factor cap can be enforced.
+52-week path to the +15% mark: whether and how the stock could reach a closing price at least 1.15 times its reference price within its own 52-week evaluation window, and what would have to happen for it to do so. For an unpurchased candidate, Week 0 is the screening date (for example, screened on 15 Oct 2026 means the 52-week endpoint is the last US trading close on or before 14 Oct 2027) and the reference price is the screening-date price. Where the user has bought the stock, Week 0 is the actual purchase date and the reference price is the actual purchase price (see R9 and 6.10). The area-of-interest price from 6.9 is assessed as a secondary, hypothetical reference point; it does not change Week 0 or the formal reference price. The +15% is a price-only hurdle, before fees and taxes. Dividends are recorded separately and are not counted toward the mark. It is a research hurdle, not a portfolio return. Expressed as a qualitative bull/base/bear outcome range, labeled as research scenarios and not forecasts. The assessment also states the checkpoints along the way (earnings dates, catalysts) at which the path should be visibly on track or off track. The system never guarantees that the mark will be reached.
+Cause classification, apple status and opportunity type: company-specific, sector/theme, macro/market or mixed; good apple, damaged apple, weak company or unclear (see 6.3); and the opportunity type (see 6.3e). The Valuation & Opportunity Check (6.3d) feeds the thesis.
+
+Falsifiability: every meaningful thesis must contain, at minimum, a bull thesis, a bear thesis, a confirmation metric, a price invalidation, a fundamental invalidation, and relevant catalysts and events. Vague statements such as "the company is good and should recover" are not acceptable. The thesis must say what observable evidence would confirm or invalidate it.
+
+Reference prices. Three prices are kept separate: the screening-date price (the price when the candidate was screened), the area-of-interest price (the research and watch level from 6.9), and the actual purchase price (only once the user reports a buy). The screening-date and area-of-interest prices are hypothetical reference points for the 52-week path, not entries. For an unpurchased candidate the output shows the technical invalidation level and the area of interest. An entry-dependent stop is calculated from a hypothetical entry or the area of interest only when the user asks for that analysis or for sizing. For an open position, the actual stop and invalidation are calculated from the actual purchase information (6.5).
+
+6.4a Theme tagging
+
+Tag every candidate and open position with one or more themes, for example: software/AI-disruption, AI-capex/semiconductors, rate-sensitive defensives/yield, housing-cycle/consumer-discretionary, industrial-cyclical. This tagging feeds the factor cap in 6.5 and lets the merge/ranking step in 6.6 flag when two candidates are really the same bet.
+
+6.5 Position Sizing & Exit Rules
+
+The technical invalidation level (6.4), the event blackout and the regime context (6.1) are part of the default output. Entry-dependent stops, trailing exits and position sizing are calculated from an actual purchase or when the user asks for them. Position sizing is execution-adjacent: it is advisory, and the user makes the final sizing and trading decision. The initial stop, position size, portfolio heat check and factor cap below are retained as the specification for those requests.
+
+Per candidate, calculate:
+
+Initial stop (entry-dependent): recent swing low or 2x ATR below entry, whichever is tighter but still outside normal daily noise. It is calculated from the actual purchase price for an open position, or from a hypothetical entry or the area of interest only when the user asks for that analysis or for sizing. It is not part of the default output for an unpurchased candidate. For an open position it also serves as the position's actual invalidation level, alongside the structural level in 6.4.
+Position size: 1-2% portfolio risk divided by stop distance, then multiplied by 0.5 if the regime rules in 6.1 (trend neutral, macro stressed, crash-alert elevated, or early-warning level Elevated or Severe) or the exception lane in 6.2 apply (the two reductions do not compound below 25%).
+Portfolio heat check against the 6-10% cap.
+Factor cap: no more than 2 open positions per theme (from 6.4a). Correlated positions count as a single position against portfolio heat.
+
+Trailing exit per open position: trail 12-15% below highest close, or below the 30-week moving average. Calculated from the actual buy and sell orders the user reports (R9).
+
+Event blackout: no new entry within 7 days before the candidate's earnings date, or any other scheduled company event flagged under the leadership-stability check in 6.2, unless the position is sized for the implied move.
+
+Flag positions for 90-day thesis review if price hasn't moved meaningfully, or if the thesis confirmation metric from 6.4 hasn't appeared in the most recent report.
+
+Flag each open position for a 52-week close-out review 30 days before its 52-week endpoint (measured from the actual purchase date), and again at the endpoint. The review covers: whether the stock reached the 15% mark; whether the thesis is still intact; the current invalidation and trailing-stop levels; and the case for holding versus exiting. The user decides. A position may exit earlier if its invalidation level or trailing exit is hit. At calendar year-end, produce an informational, portfolio-level checkpoint of all open positions (unrealized gain or loss, thesis status, and progress against the 15% annual portfolio target). The checkpoint does not require any position to be closed.
+
+Flag positions immediately, outside the normal schedule, if the fundamental invalidation condition from 6.4 is triggered by news or an earnings report, or if the crash-alert flag reaches crash.
+
+6.6 Merge & Ranking
+
+Combine quant-pass, qual-research, regime flags (including the crash-alert flag, the early-warning level and suspected regime type), theme tags, valuation checks, opportunity types, and thesis/invalidation writeups into one ranked list, separating core Track 1 from the exception lane and from Watch (not entry-ready) names.
+
+Tag every ranked candidate with the discovery lane or lanes that surfaced it (core universe scan, Top-50 losers, theme and news). A candidate surfaced only by the theme and news-driven lane is labeled "theme-sourced", and receives no waiver of any numeric rule because of its popularity or theme relevance.
+
+Ranking is by label and thesis quality. The discovery lane is a provenance tag and does not by itself raise or lower a candidate's rank. Candidates with a Provisional data status are marked as such, and candidates with a Data incomplete status are listed separately as "Cannot be graded" and are not ranked.
+
+Flag disagreements, including a stock whose only real thesis is "needs rates to fall," one with an unresolved company-specific negative catalyst, one in a leadership-driven cooldown, one carrying a beta sensitivity or beta discrepancy flag, one classified as a Systemic-risk setup, or one whose valuation check shows potential value-trap compression.
+
+Flag theme collisions: if two or more ranked candidates share a theme tag, note it explicitly next to the ranking.
+
+Flag theme-versus-tripwire exposure: if a candidate's theme is directly exposed to an instrument that has fired in the Macro Dashboard (for example AI-capex/semiconductors while NQ1! has fired), note it next to the ranking.
+
+No-forced-candidate rule: the system must be comfortable returning zero candidates. If one candidate satisfies the methodology, return one. If five qualify, return five. The agent must not weaken filters to produce a predetermined number of stocks. The objective is to identify potentially attractive opportunities, not to maximize outputs.
+
+6.7 Scheduling & Triggers (OPTIONAL, NOT REQUIRED; the system is run manually for now)
+
+This section is retained as the specification for future automation. It is not a current requirement. The user may invoke the system manually whenever research is needed. TradingView alerts may still notify the user, who then decides whether to invoke a run. TradingView webhook alerts (paid plan) are the only officially supported automation path from TradingView; see 6.1b.
+
+Weekly run for new candidates, starting with the Macro Dashboard check.
+A separate, lighter daily check on open positions against trailing stops, 90-day review dates, 52-week close-out dates and fundamental invalidation triggers, also starting with the Macro Dashboard check.
+Event-triggered runs: Fed decisions, index-level shock days, earnings dates for held tickers, and any Macro Dashboard trigger: any single Tier 1 tripwire firing, or two or more Tier 2 or Tier 3 instruments firing in the same session, including outside normal trading hours (for example a large overnight move in futures or in BTCUSD over a weekend).
+Weekly gap check on the first run after the Monday futures reopen (see 6.1a).
+
+6.8 Output
+
+Dual format: a plain-language summary and a technical/parameter section, each including the thesis and invalidation breakdown from 6.4. Both formats open with a Macro Dashboard block: crash-alert flag, trend flag, macro-stress flag, the early-warning level (with the dimensions it is based on and any not provided), which tripwires fired, the suspected regime type, and the source, data status (real-time or delayed) and paste time of each instrument. The block states that tripwires were evaluated on a snapshot, and lists any instruments marked "not provided". Delivery channel: TBD (email, Slack, or Google Sheet via Apps Script). (For now all output is plain text, delivered in chat. The dual-format, Macro Dashboard block and technical section above are produced when requested. Email, Slack and Sheets delivery are not required.)
+
+Default output (plain text, concise and decision-useful):
+
+For screening (Modes B and C), one block per selected candidate:
+[TICKER] - [COMPANY]
+Found via (core universe scan, Top-50 losers, theme and news, or user-supplied)
+Data status (Verified, Mixed-source, Provisional or Data incomplete; name the weak input where it matters)
+Why it made the cut (show beta with source and window when it is within 0.2 of a threshold, and add the "Beta sensitivity" or "Beta discrepancy" label where 6.2 says so)
+What caused the drop (company-specific, sector/theme, macro/market or mixed, with components)
+Opportunity type (Company-specific opportunity, Sector/theme opportunity, Macro opportunity or Systemic-risk setup) and the early-warning level
+Valuation opportunity: Favorable, Neutral, Unfavorable or Unavailable
+Forward P/E: [value, source, timestamp]
+Historical comparison: [versus own 3-year and/or 5-year range]
+Peer comparison: [versus named peers or the industry]
+Earnings estimate trend: Improving, Stable or Falling
+Interpretation: [brief; states the compression driver]
+What to wait for
+Potential waiting window
+Thesis (including the 52-week path to the +15% mark)
+Invalidation (price and fundamental)
+Key risk
+Optionally, one line of macro or theme context, only when it changes how the candidate should be read.
+
+For discovery requests (Modes C and F), end with one lane coverage line: which lanes were run (core universe scan, Top-50 losers, theme and news) and which were not, and, if the core universe scan did not run, a statement that the shortlist is partial.
+
+For market and news requests (Mode A):
+What happened
+How the market reacted
+What appears to be driving the reaction
+Which sectors and themes are affected
+What matters next
+
+Do not automatically output tables, dashboards, charts, spreadsheets, email/Slack/Sheets delivery, implementation details, position sizing, the entire PRD, or every rejected candidate. Provide those only when explicitly requested.
+
+6.9 Entry-Wait Analysis and Event-Aware Waiting
+
+The agent does not try to predict the exact bottom. Instead it identifies: a potential area of interest; the evidence that would make the area more credible; technical stabilization; fundamental confirmation; relevant company events; relevant market and regime conditions; and what would make waiting preferable to acting immediately. Where appropriate it answers: "What low or stabilization point would make this worth watching?" This is expressed as a research condition or potential area, not certainty that a specific price is the bottom. The area of interest is not an instruction to buy.
+
+Waiting is tied to information whenever possible: next earnings report; guidance update; product launch; project milestone; partnership or collaboration update; regulatory decision; management transition; investor day; estimate-revision cycle. Prefer "wait for the next earnings report and reassess whether guidance stabilizes" over "wait two weeks." A time estimate is given only when it corresponds to a known event schedule or reasonable research window. The agent does not invent precision where no meaningful event date exists. The 7-day event blackout in 6.5 remains in force. Where the opportunity type is Systemic-risk setup, or the early-warning level is Elevated or higher, the waiting analysis states what regime improvement (for example breadth or credit stabilizing) would make waiting less preferable.
+
+6.10 Outcome Tracking and Success Definition
+
+Each candidate the user decides to buy gets an outcome record built only from user-provided information (R9). Outcome records exist only for purchases. The record contains: ticker; screening date; the discovery lane or lanes that surfaced it (core universe scan, Top-50 losers, theme and news); the lane label at screening (Core Track 1, Track 1X); screening-date price; area-of-interest price; the thesis and 52-week path as assessed at screening; actual purchase date (Week 0) and price; the 52-week mark (actual purchase price multiplied by 1.15, price only, before fees and taxes); the 52-week endpoint; dividends received during the window (logged separately; not counted toward the mark); and the user's sell date and price when reported.
+
+The 52-week mark is a price-only research hurdle: the stock reaches the mark when a US trading close is at or above it. It is not a measure of portfolio return; a stock reaching its mark contributes to the portfolio only in proportion to the position size the user actually held. The mark moves with the user's actual purchase price. Example: bought at $100 means the mark is $115; bought at $112 means $128.80; bought at $115 means $132.25.
+
+52-week convention (defined in PORTFOLIO PERFORMANCE VS. INDIVIDUAL STOCK EVALUATION): Week 0 is the purchase date. The 52-week endpoint is the last available US trading close on or before the calendar date 52 weeks after Week 0. The mark is reached within 52 weeks when a US trading close dated after Week 0 and on or before that calendar date is at or above the mark (the Week 0 close is not counted, because the time of purchase within that day is not known). The same convention applies to the screening-date 52-week path (Week 0 is the screening date), the trade outcome, the price-path outcome and any backtest.
+
+Two outcomes are tracked separately, because they can differ when the user exits early or an advisory stop is breached.
+
+Trade outcome (what the user's actual position did, built from the buys and sells the user reports):
+Reached the mark before exit: a US trading close reached the mark while the user still held the position.
+Exited before the mark: the user sold, including at or after an invalidation or trailing-exit trigger, before a US trading close reached the mark.
+Held to the 52-week endpoint without reaching the mark: the 52-week endpoint passed with the user still holding and the mark never reached.
+
+Price-path outcome (what the stock did over the 52 weeks from the actual purchase date, regardless of what the user did): whether a US trading close reached the mark at any point in the window (yes or no, with the date), and whether the close at the 52-week endpoint was at or above the mark. For a position the user exited early, the price path continues to be measured to the 52-week endpoint, so the user can see whether the stock reached the mark after the exit.
+
+Each outcome record also notes: whether the advisory invalidation level or trailing exit was breached on a closing basis during the holding period, and when (whether or not the user acted on it); the maximum drawdown from the purchase price during the window; and how the purchase price compared with the screening-date price and the area-of-interest price.
+
+The 52-week path assessed at screening covers 52 weeks from the screening date, while the outcome window runs 52 weeks from the actual purchase. When the user reports a purchase, the agent refreshes the path assessment for the new window (R9). At the 52-week close-out, the agent compares the outcome with the original thesis, catalysts and invalidation conditions, and notes what the thesis got right or wrong. This is for the user's review and for improving the method. It is not performance reporting and not a guarantee. Portfolio-level performance is evaluated separately, on the portfolio's own annual clock, from the user's actual trades, position sizes and realized returns.
+
+Lane comparison: at review time, outcomes can be summarised by discovery lane and by label (core, 1X, Top-50 losers, theme and news), using both the trade outcome and the price-path outcome, so the user can see which lane's results hold up. Sample sizes are stated, and small samples are described as such. Because records exist only for purchases, the comparison reflects the candidates the user chose to buy (see Open Questions).
+
+
+6.11 Label Glossary (new in v2.0)
+
+Core Track 1: passes every core rule.
+Track 1X: passes every core rule except primary beta, which is between 1.3 and 1.8; half size, manual review.
+Near-miss: fails only the drawdown rule (less than 20% below its high); eligible for a threshold alert.
+Excluded: fails any other rule, or has a primary beta above 1.8.
+Watch (not entry-ready): interesting but not yet stabilized, or held back by a flag, blackout, regime guidance or Provisional data status.
+Not entry-ready under the current regime: the regime flags in 6.1 advise against new entries.
+Theme-sourced: surfaced only by the theme and news-driven lane.
+Beta sensitivity: the 1-year cross-check falls on the other side of 1.3 or 1.8 from the primary beta; manual scrutiny, no change to lane or size.
+Beta discrepancy: two sources disagree on the same metric and window; reconciled or marked unverified.
+NOT RUN: a discovery lane or data source that could not be run; never presented as a complete screen.
+Not provided: an instrument or field the user did not paste; never filled from memory.
+Snapshot: Macro Dashboard tripwires evaluated on a single paste rather than a trailing 24 hours.
+Unverified: a figure not yet confirmed against the designated source.
+Verified, Mixed-source, Provisional, Data incomplete: the candidate data statuses defined in 6.3c.
+Cannot be graded: a Data incomplete candidate; no label is assigned.
+Week 0: the screening date for an unpurchased candidate, or the actual purchase date for a purchased position.
+52-week evaluation window: the period from Week 0 to the 52-week endpoint, used for each candidate or position independently of the calendar-year portfolio period. It is a PRD-defined window, not a market convention.
+52-week endpoint: the last available US trading close on or before the calendar date 52 weeks after Week 0.
+52-week mark: 1.15 times the relevant reference price; price-only; dividends are not counted.
+Early-warning level: Normal, Caution, Elevated, Severe, Crisis or Unavailable (6.1c); separate from the crash-alert flag.
+Valuation opportunity: Favorable, Neutral, Unfavorable or Unavailable (6.3d).
+Opportunity type: Company-specific opportunity, Sector/theme opportunity, Macro opportunity or Systemic-risk setup (6.3e).
+
+
+ARCHITECTURE AND DEVELOPMENT APPROACH
+
+Conceptual architecture, kept simple:
+
+Claude Project: persistent project context.
+Position Trading Skill: methodology, workflow, principles and output rules.
+Financial connectors: external evidence (see 6.3a).
+Python/code: deterministic calculations and processing (including the 1-year beta cross-check).
+Data sources: per the Source Register (IBKR where the account supports it, user-pasted TradingView data, external research connectors).
+Human: final judgment.
+
+Do not prematurely create a multi-agent architecture. If the Skill becomes large or develops genuinely independent specialist workflows, it can later be divided into specialized agents and reference documents.
+
+The system uses pass/fail eligibility, qualitative research, thesis and invalidation, and lane provenance. It does not use an arbitrary numeric master score or a machine-learning scoring model. The Macro Benchmark Reading Guide is a companion document: the PRD holds the governing rules, the guide explains how to read each instrument, and the PRD prevails if they differ.
+
+The core methodology should remain usable on Claude Free where the required Skill, connectors, file handling and other features are available to the account. The expected limitation is usage capacity, context limits and slower, more incremental research, not a fundamentally different architecture. Do not design the methodology around paid-only assumptions unless a specific capability requires it.
+
+Development may be incremental: build one component at a time; manually provide data; manually trigger research; test individual workflow sections; refine prompts and references before adding automation; postpone multi-agent architecture. Correct methodology takes priority over implementation complexity.
+
+
+NON-FUNCTIONAL REQUIREMENTS
+
+Must run reliably when invoked manually. (Reliable unattended weekly operation is optional, see 6.7.)
+Every research claim timestamped and sourced. Every number carries its source, timestamp and data status (real-time, delayed or user-pasted), traceable to the Source Register. Figures from outside the designated source are labeled by source and reconciled per 6.3a.
+Cost-aware API/data usage, and usable within Claude Free capacity limits through incremental, minimum-necessary execution.
+Historical evaluation (point-in-time rule): backtests and other historical evaluations must use only information that would have been available at the historical screening date, where practical: fundamentals as reported at the time, beta computed only from data before that date, market cap and universe as of that date (including companies since delisted), and no knowledge of later events. Current fundamentals, current betas or future knowledge must not leak into historical tests. If a point-in-time source is not available for an input, the test is labeled as having look-ahead bias and its results are treated as indicative only.
+
+
+OPEN QUESTIONS
+
+Hold limit: confirm the 30-day lead time for the 52-week close-out review before the 52-week endpoint (the 30 days is a proposal), and that the year-end checkpoint stays informational and portfolio-level only.
+Trade-record format: in what form will the user send buy and sell orders (a TWS or IBKR export, pasted order details, or a file the user maintains), and should the agent log them in a file that the user keeps and re-uploads? The 6.10 outcome records need a place to live.
+Delivery channel: for now, plain text in chat. Email, Slack or Sheet delivery is optional and deferred.
+Regime-filter trend rule: exact moving-average and trend definition for SPY/QQQ?
+Macro-stress thresholds: is 5.0% on the 10-year the right trigger, and how should a hiking cycle be defined?
+Macro Dashboard thresholds: are the starting thresholds in 6.1a (for example -3% on NQ1!, +20% on VX1!, -8% on BTCUSD over 24 hours) right? Backtest how often each fires and how often a firing was a false alarm, using past episodes such as March 2020, 2022 and August 2024. Is the count rule (2-3 elevated, 4 or more crash) the right one?
+Macro Dashboard data (revised in v2.0): macro data now comes from the user's TradingView paste. Open: are the CME, CBOE, SGX, TAIFEX, KRX, EUREX, HKEX and BMD feeds real-time or delayed on the user's TradingView plan (each exchange needs its own data subscription for real-time)? Does K2I1! show the Korean night session? Are the symbols for USDSGD and USDTWD correct as shown in TradingView? Does NSEIX:NIFTY1! show the extended GIFT Nifty hours?
+Data transport (partly decided in v2.0): manual TradingView paste is the default for macro data. Still open: how stock-level data reaches the research step (IBKR connector where it works, Python against TWS, or TradingView screener and financials pasted by the user), and whether to pursue automation (IBKR subscriptions, another market-data provider, or TradingView webhook alerts). The user is asking friends about TradingView Premium; note that no TradingView plan provides a public data API, so Premium helps mainly with data in the TradingView interface, alerts and the screener.
+Research layer execution (undecided; the user will advise): Claude API call from a script (as written in 6.3), or Claude in chat using the Skill?
+Top-50 lane: confirm the practical floor numbers in 6.2b (including the $10M average daily dollar volume starting value), and whether Claude's triage may ever override the core numeric rules (current design: triage decides which names get researched, the core rules decide the label).
+Beta definition (revised in v1.9, updated in v2.0): confirm the primary beta (IBKR field if available, which was not observed through the connector; otherwise 5-year monthly from a named source), whether the 1-year daily cross-check versus SPY is wanted, and the materiality threshold for a beta discrepancy (proposed: 0.2 or straddling a threshold). Check which window TradingView's beta uses; if it is 1 year, decide whether it serves only as the cross-check (as in v1.9) or can be primary.
+Core universe scan (new in v1.8, updated in v2.0): can a scanner or screener supply drawdown from the 52-week high, market cap, price and volume? Candidates are the TWS API scanner and TradingView's Stock Screener (fields such as beta, debt/equity, margin and EPS growth, and export or paste options on the user's plan, are unverified). Is a pasted or exported screener result an acceptable universe source, and how often would it be supplied?
+Theme and news lane (new in v1.8): confirm the list-size proposal (typically 5 to 15 names), which themes to cover, how often the theme list is refreshed, and the connectors used. Since this lane is judgment-based and cannot be backtested like the numeric lanes, is forward outcome logging by lane (6.10) enough?
+Near-miss threshold alerts (new in v1.8, proposed): confirm extending the re-entry alert list to names that fail only the drawdown rule, and whether to cap how far from 20% a name can be (for example within 5 percentage points).
+Stop definition: "outside normal daily noise" in 6.5 is not quantified. Should there be a minimum distance (for example a multiple of ATR) so a stop at a swing low only about 1.3x ATR from price is not accepted automatically?
+Not-purchased candidates (kept open): outcome records exist only for purchases, so lane comparisons reflect only what the user chose to buy. Should the price path of shortlisted candidates the user did not buy also be tracked from the screening date? It would separate research quality (did the methodology identify a good opportunity?) from trade quality (did the user's actual position work?). It would use market data only and must never be treated as a simulated trade or a portfolio result.
+Taiwan, Korea and Singapore (new in v2.0): K2I1! and TXF1! stay separate confirmations (decided), but should a later refinement group correlated instruments into confirmation clusters (US equity, Asia/semiconductor, Europe, rates/bonds, FX/carry, crypto)? What threshold should SGP1! get once its normal daily volatility is known? Should the -3% starting thresholds for K2I1! and TXF1! be tested against past episodes (March 2020, 2022, August 2024)?
+Early-warning layer (new in v2.2): what recent window and what thresholds define "deteriorating" for each indicator; which indicators can actually be sourced with timestamps (the register entry is untested); whether the agent may retrieve published indicators through web research when not pasted (proposed in 6.1c). Crisis is decided: it means the crash-alert flag is crash. Backtest the level against past episodes (March 2020, 2022, August 2024) using point-in-time data.
+Valuation & Opportunity Check (new in v2.2): which peer set and which history window (3-year, 5-year or both) to use; how far a forward P/E must compress to count as material; and whether "Unfavorable" should include a company whose valuation is still rich after the pullback (proposed in 6.3d).
+Opportunity type (new in v2.2): confirm the proposed assignment rule in 6.3e for Systemic-risk setup. Should outcome records (6.10) also store the valuation opportunity label, opportunity type and early-warning level at screening, so these diagnostics can be evaluated later?
+Where does it run: local or cloud-hosted?
+Before building: what does a rough backtest of the Track 1 filter plus this exit logic show for historical win rate and average reward/risk? Test core Track 1 and the exception lane separately, and the numeric lanes separately from each other (the theme and news lane is evaluated forward only). Use point-in-time information only (see Non-Functional Requirements). This determines whether the 15% stock hurdle is realistic with this rule set; the portfolio-level return from the rules and sizing is evaluated separately. The 6.10 price-path outcome (a US trading close reaching +15% at any point within 52 weeks) can serve as the backtest's win condition.
+Does the stabilization check (higher low or close above the 10-week MA) improve backtest results or only delay entries? Does the +15%-in-30-days exclusion help or just filter out winners that were already working? Does the new leadership-stability cooldown help or mainly cause missed entries on overreactions?
+How should the fundamental invalidation condition in 6.4 be monitored automatically? Full text parsing of earnings releases is out of scope for the current strategy scope; a manual check during a run may be the realistic current answer.
+Where does the investment journal live and in what format? (Prior theses and open positions come only from user-provided files or exports, see R9.)
+Later strategy expansion: expand to KRX/KLCI as a tradeable universe, not just a regime benchmark? Add automated position tracking against live stops? Test a separate re-rating track (the earlier "Track 1B" idea) or a deep-value track? Test a separate rate-sensitive yield track tied to the macro-stress flag turning from stressed to normal?
+
+
+BUILD ORDER - v2.2
+
+0. (Step 0, before anything else) Build the Source Register (6.3b): test and record, for every quantitative rule, which source supplies it (the IBKR connector, the IBKR TWS API, TradingView watchlist and screener on the user's plan, external connectors), including real-time versus delayed status and any gating. This covers the market scanner or screener for the core universe scan and the losers lane, the beta field and its window, and the Macro Dashboard instruments. Designate and document alternative sources for any gaps, including the user-supplied scanner or screener export fallback.
+1. Backtest core Track 1 filter plus trailing-exit rule (and the exception lane separately) against 2-3 years of historical data to sanity-check the 15% stock hurdle using point-in-time data (see Non-Functional Requirements), with the 6.10 price-path outcome as the win condition.
+2. Quantitative screen, sourced per the Source Register, as a script or run in Claude (core universe scan, Track 1 filters, extra fields, primary beta plus the 1-year daily cross-check with its beta sensitivity and beta discrepancy labels, stabilization check, exception lane, near-miss alerts, +15%-in-30-days flag, leadership-stability flag, lane coverage line, as code).
+3. Macro Dashboard check (6.1a) and Manual TradingView Input Protocol (6.1b): watchlist reconciliation, per-instrument fields, snapshot tripwire logic, crash-alert flag, suspected regime type, and the paste validation checks. The Macro Drawdown / Crash-Risk Early-Warning Layer (6.1c) is built after the acute tripwires work, and its indicators are added to the Source Register as they are tested.
+4. Two-part regime filter (trend and macro stress), combined with the crash-alert flag from step 3.
+5. Stop / trailing-exit calculator, earnings/event blackout and 52-week close-out review dates, driven by the user's reported buy and sell orders, plus the on-request advisory sizing module (regime and exception-lane size reductions, factor cap, heat check).
+6. Top-50 Daily Losers lane: scanner, practical floors, Claude triage and cause classification.
+7. Theme and News-Driven lane (6.2c): theme scan, floors, grading against the Track 1 rules, labels (Core, 1X, Near-miss, Excluded), and the "theme-sourced" tag.
+8. Research layer (Claude via the Skill, or API, per the open question), including the thesis and invalidation breakdown fields, the 52-week path to the +15% mark, the valuation and opportunity check (6.3d), the opportunity type (6.3e), the drawdown-cause classification and the Macro Dashboard context check.
+9. Outcome log (6.10): the record format (including discovery lane and dividends), the trade outcome and price-path outcome definitions, the stop-breach flag and the lane comparison, fed by the user's reported buys and sells.
+10. Execution modes (A-F) and default plain-text output templates (including the "found via" line and the lane coverage line, and without sizing by default); merge/ranking with lane tags, candidate data status (6.3c), theme-collision, theme-versus-tripwire and beta sensitivity/discrepancy flagging.
+11. Optional: scheduling, event triggers (including Macro Dashboard triggers and the Monday gap check), fundamental invalidation checks, and any delivery channel beyond plain text.
